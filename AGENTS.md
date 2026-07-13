@@ -5,8 +5,14 @@ also extends the superproject `AGENTS.md` when checked out as a submodule.
 
 ## Repository workflow
 
-- Use `main` as the protected integration branch and Conventional Commits with
-  the `glasses` scope.
+- Keep `main` stable, buildable, and usable. Do all feature and fix work on a
+  short-lived branch created from an up-to-date `main`.
+- Use simple branch names such as `feat/camera-capture`, `fix/p2p-reconnect`, or
+  `chore/sdk-update`. Keep the suffix to one to three clear kebab-case words.
+- Merge only after the required tests and device evals pass. Delete merged,
+  abandoned, superseded, and otherwise unused branches locally and remotely as
+  soon as they no longer serve active work.
+- Use Conventional Commits with the `glasses` scope.
 - Ship every feature or fix with deterministic tests and a device eval when
   hardware behavior is involved.
 - Use Semantic Versioning for releases and push the submodule commit before the
