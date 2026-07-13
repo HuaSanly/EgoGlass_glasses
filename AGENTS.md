@@ -5,8 +5,13 @@ also extends the superproject `AGENTS.md` when checked out as a submodule.
 
 ## Repository workflow
 
-- Keep `main` stable, buildable, and usable. Do all feature and fix work on a
+- Keep `main` stable, buildable, and usable. Every code, dependency, build,
+  contract, CI, release, or runtime-affecting configuration change uses a
   short-lived branch created from an up-to-date `main`.
+- Small documentation, wording, comment, and repository-governance changes that
+  cannot affect build or runtime behavior may be committed directly to `main`
+  after a local diff and formatting check. If the impact is uncertain, use a
+  branch.
 - Use simple branch names such as `feat/camera-capture`, `fix/p2p-reconnect`, or
   `chore/sdk-update`. Keep the suffix to one to three clear kebab-case words.
 - Merge only after the required tests and device evals pass. Delete merged,
