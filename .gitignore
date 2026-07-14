@@ -1,0 +1,30 @@
+# Android Studio and local tooling
+.idea/
+.gradle/
+.kotlin/
+*.iml
+local.properties
+
+# Generated build output
+build/
+**/build/
+.cxx/
+.externalNativeBuild/
+captures/
+*.apk
+*.aab
+
+# The wrapper JAR is generated locally by scripts/bootstrap-gradle-wrapper.ps1.
+gradle/wrapper/gradle-wrapper.jar
+
+# Signing material and credentials
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+.env
+.env.*
+
+# Operating-system files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- The Rokid SDK bundles this utility, but EgoGlass does not post notifications. -->
+    <issue id="NotificationPermission">
+        <ignore regexp="usage from com\.blankj\.utilcode\.util\.NotificationUtils" />
+    </issue>
+</lint>

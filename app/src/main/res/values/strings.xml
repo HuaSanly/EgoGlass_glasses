@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">EgoGlass</string>
+    <string name="product_label">EGOGLASS / GLASSES</string>
+    <string name="runtime_identity">SDK 2.2.0-E  |  EgoGlassGlasses</string>
+    <string name="status_indicator_description">SDK connection status</string>
+
+    <string name="status_idle">STANDBY</string>
+    <string name="status_idle_detail">Waiting to initialize the device service</string>
+    <string name="status_connecting">CONNECTING</string>
+    <string name="status_connecting_detail">Binding the Glass3 security service</string>
+    <string name="status_registering">REGISTERING</string>
+    <string name="status_registering_detail">Registering this glasses application</string>
+    <string name="status_ready">SYSTEM READY</string>
+    <string name="status_ready_detail">Glass3 SDK is connected and ready</string>
+    <string name="status_disconnected">DISCONNECTED</string>
+    <string name="status_disconnected_detail">The Glass3 service connection was lost</string>
+    <string name="status_error">CONNECTION ERROR</string>
+    <string name="status_error_detail">The Glass3 service could not be initialized</string>
+    <string name="retry">RETRY</string>
+</resources>
