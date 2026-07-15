@@ -9,15 +9,33 @@
     android:paddingEnd="40dp"
     android:paddingBottom="36dp">
 
-    <TextView
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFamily="sans-serif-medium"
-        android:gravity="start"
-        android:letterSpacing="0"
-        android:text="@string/product_label"
-        android:textColor="@color/text_secondary"
-        android:textSize="14sp" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0"
+            android:text="@string/product_label"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/sdk_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:letterSpacing="0"
+            android:text="@string/sdk_pending"
+            android:textColor="@color/text_muted"
+            android:textSize="11sp" />
+
+    </LinearLayout>
 
     <Space
         android:layout_width="1dp"
@@ -56,6 +74,17 @@
         android:textColor="@color/text_secondary"
         android:textSize="16sp" />
 
+    <TextView
+        android:id="@+id/stream_stats"
+        android:layout_width="match_parent"
+        android:layout_height="32dp"
+        android:fontFamily="monospace"
+        android:gravity="center"
+        android:letterSpacing="0"
+        android:maxLines="1"
+        android:textColor="@color/text_muted"
+        android:textSize="12sp" />
+
     <Button
         android:id="@+id/retry_button"
         android:layout_width="168dp"
@@ -77,6 +106,7 @@
         android:layout_weight="1" />
 
     <TextView
+        android:id="@+id/runtime_identity"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:fontFamily="monospace"

@@ -43,6 +43,7 @@ android {
 }
 
 dependencies {
+    implementation libs.stream.webrtc.android
     implementation('com.rokid.security:glass3.open.sdk:2.2.0-E') {
         exclude group: 'org.slf4j'
     }

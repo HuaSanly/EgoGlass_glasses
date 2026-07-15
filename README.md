@@ -1,8 +1,8 @@
 # EgoGlass_glasses
 
-Production Android application for Rokid Glass3 Enterprise. The current
-baseline owns SDK lifecycle and device readiness; capture and transport
-features will be added behind project-owned interfaces.
+Production Android application for Rokid Glass3 Enterprise. It owns SDK
+lifecycle, NV21 camera capture, and direct WebRTC publishing to the Windows
+ingest gateway.
 
 ## Runtime baseline
 
@@ -17,6 +17,22 @@ features will be added behind project-owned interfaces.
 
 Only `platform/rokid` imports vendor SDK classes. UI and future application
 features consume the project-owned `SdkConnection` contract.
+
+## Direct WebRTC streaming
+
+The first profile requests pure-camera 1280 x 720 NV21 at 20 FPS and publishes
+H.264 at 2.5 Mbps. Frame metadata uses the `frame-metadata-v1` DataChannel.
+Runtime endpoint and pairing secrets are injected at launch and never stored:
+
+```powershell
+adb shell am start -n com.egoglass.glasses/.MainActivity `
+  --es signaling_url http://192.168.1.20:8770/api/v1/webrtc/sessions `
+  --es pairing_token <runtime-token>
+```
+
+V1 signaling uses HTTP on a trusted LAN. Media remains encrypted by
+DTLS-SRTP. The application keeps the Glass3 display awake while streaming and
+stops capture when its Activity leaves the foreground.
 
 ## Build
 
@@ -51,6 +67,18 @@ Real Glass3 readiness eval:
 
 See `evals/device/sdk-readiness.md` for pass criteria and manual lifecycle
 coverage.
+
+Direct LAN streaming gate:
+
+```powershell
+.\scripts\run-webrtc-device-eval.ps1 `
+  -ClientHost 192.168.1.20 `
+  -PairingToken <runtime-token> `
+  -DurationSeconds 1800
+```
+
+See `evals/device/webrtc-lan-streaming.md` for the no-phone, no-USB-forwarding
+acceptance criteria.
 
 ## Official Demo provenance
 

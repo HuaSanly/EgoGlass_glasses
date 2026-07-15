@@ -4,6 +4,8 @@
     <string name="product_label">EGOGLASS / GLASSES</string>
     <string name="runtime_identity">SDK 2.2.0-E  |  EgoGlassGlasses</string>
     <string name="status_indicator_description">SDK connection status</string>
+    <string name="sdk_ready">SDK READY</string>
+    <string name="sdk_pending">SDK WAIT</string>
 
     <string name="status_idle">STANDBY</string>
     <string name="status_idle_detail">Waiting to initialize the device service</string>
@@ -18,4 +20,23 @@
     <string name="status_error">CONNECTION ERROR</string>
     <string name="status_error_detail">The Glass3 service could not be initialized</string>
     <string name="retry">RETRY</string>
+
+    <string name="stream_waiting">WAITING FOR CLIENT</string>
+    <string name="stream_waiting_detail">Client configuration is not present</string>
+    <string name="stream_config_error">CONFIGURATION ERROR</string>
+    <string name="camera_permission">CAMERA PERMISSION</string>
+    <string name="camera_permission_detail">Camera access is required for streaming</string>
+    <string name="stream_signaling">NEGOTIATING</string>
+    <string name="stream_signaling_detail">Exchanging WebRTC session details</string>
+    <string name="stream_connecting">CONNECTING</string>
+    <string name="stream_connecting_detail">Securing the media channel</string>
+    <string name="stream_capturing">OPENING CAMERA</string>
+    <string name="stream_capturing_detail">Starting the Glass3 video source</string>
+    <string name="stream_live">STREAMING LIVE</string>
+    <string name="stream_live_detail">Direct video is connected to the client</string>
+    <string name="stream_disconnected">STREAM LOST</string>
+    <string name="stream_disconnected_detail">The client media connection was lost</string>
+    <string name="stream_error">STREAM ERROR</string>
+    <string name="stream_error_detail">The direct video session failed</string>
+    <string name="stream_stats">sent %1$d  dropped %2$d  metadata %3$d</string>
 </resources>

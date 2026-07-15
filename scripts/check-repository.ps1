@@ -23,8 +23,10 @@ if ($forbiddenFiles.Count -gt 0) {
     throw "Forbidden generated or local files found:`n$($forbiddenFiles -join "`n")"
 }
 
-$sourceFiles = Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'app') -Recurse -File |
-    Where-Object { $_.Extension -in @('.kt', '.java', '.xml', '.gradle') }
+$sourceFiles = @($candidateFiles | Where-Object {
+    $path = $_ -replace '\\', '/'
+    $path -match '^app/' -and [IO.Path]::GetExtension($path) -in @('.kt', '.java', '.xml', '.gradle')
+} | ForEach-Object { Join-Path $repositoryRoot $_ })
 $legacyNames = @('com.rokid.glesse', 'com.rokid.glass.', 'GlassSample', 'glassdemo')
 $legacyMatches = @($sourceFiles | Select-String -SimpleMatch -Pattern $legacyNames)
 if ($legacyMatches.Count -gt 0) {
