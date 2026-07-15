@@ -89,8 +89,8 @@ $matchRatio = $lastStatus.metadata_matched / [Math]::Max(1, $lastStatus.frames_r
 if ($matchRatio -lt 0.95) {
     throw "GLASS-EVAL-WEBRTC-001 failed: metadata match ratio $matchRatio is below 0.95."
 }
-if ($lastStatus.average_fps -lt 15 -or $lastStatus.average_fps -gt 24) {
-    throw "GLASS-EVAL-WEBRTC-001 failed: average FPS $($lastStatus.average_fps) is outside 15..24."
+if ($lastStatus.average_fps -lt 27 -or $lastStatus.average_fps -gt 33) {
+    throw "GLASS-EVAL-WEBRTC-001 failed: average FPS $($lastStatus.average_fps) is outside 27..33."
 }
 if ($lastStatus.width -ne 1280 -or $lastStatus.height -ne 720) {
     throw "GLASS-EVAL-WEBRTC-001 failed: decoded size is $($lastStatus.width)x$($lastStatus.height)."

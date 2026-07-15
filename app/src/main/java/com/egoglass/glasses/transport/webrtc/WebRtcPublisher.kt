@@ -1,5 +1,6 @@
 package com.egoglass.glasses.transport.webrtc
 
+import com.egoglass.glasses.capture.CaptureConfig
 import com.egoglass.glasses.capture.CapturedVideoFrame
 
 interface WebRtcPublisher {
@@ -9,7 +10,7 @@ interface WebRtcPublisher {
 
     fun removeListener(listener: WebRtcPublisherListener)
 
-    fun connect(config: WebRtcSessionConfig)
+    fun connect(config: WebRtcSessionConfig, captureConfig: CaptureConfig)
 
     fun offerFrame(frame: CapturedVideoFrame)
 

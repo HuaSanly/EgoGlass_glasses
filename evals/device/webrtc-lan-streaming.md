@@ -22,7 +22,7 @@ In another terminal:
 .\scripts\run-webrtc-device-eval.ps1 `
   -ClientHost 192.168.1.20 `
   -PairingToken <runtime-token> `
-  -DurationSeconds 1800
+  -DurationSeconds 60
 ```
 
 The script refuses to run unless Android routes the Windows client address over
@@ -34,8 +34,13 @@ directory and `%TEMP%\egoglass-webrtc-eval`.
 - Client and Glass3 are on the same LAN and the route uses `wlan0`.
 - WebRTC reaches `streaming` and the first decoded frame arrives in under two
   seconds after offer processing begins.
-- Requested capture is 1280 x 720 at 20 FPS and the negotiated codec is H.264.
-- The decoded stream remains between 15 and 24 FPS for 30 minutes.
+- Requested and applied capture is 1280 x 720 at 30 FPS and the negotiated
+  codec is H.264.
+- The decoded stream remains between 27 and 33 FPS for the 60-second gate.
+- The device log records `supported_preview_sizes` and the requested
+  `1280x720@30` profile. The client verifies the applied cadence from decoded
+  frames because SDK 2.2.0-E does not always emit a runtime-parameter callback
+  for the initial camera open.
 - Metadata is received, at least 95 percent of decoded frames match metadata,
   unmatched buffers remain bounded at 256 entries, and timestamp association
   error does not exceed 90 ticks (1 ms).

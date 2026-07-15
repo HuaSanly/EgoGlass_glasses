@@ -5,7 +5,7 @@ import java.net.URI
 data class WebRtcSessionConfig(
     val signalingUrl: String,
     val pairingToken: String,
-    val targetBitrateBps: Int = 2_500_000,
+    val targetBitrateBps: Int = 5_000_000,
 ) {
     init {
         val uri = URI(signalingUrl)

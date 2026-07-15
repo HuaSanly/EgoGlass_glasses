@@ -20,8 +20,9 @@ features consume the project-owned `SdkConnection` contract.
 
 ## Direct WebRTC streaming
 
-The first profile requests pure-camera 1280 x 720 NV21 at 20 FPS and publishes
-H.264 at 2.5 Mbps. Frame metadata uses the `frame-metadata-v1` DataChannel.
+The default profile requests pure-camera 1280 x 720 NV21 at 30 FPS and publishes
+H.264 at a 5 Mbps target bitrate. Capture and WebRTC adaptation use the same
+`CaptureConfig`, and frame metadata uses the `frame-metadata-v1` DataChannel.
 Runtime endpoint and pairing secrets are injected at launch and never stored:
 
 ```powershell
@@ -74,7 +75,7 @@ Direct LAN streaming gate:
 .\scripts\run-webrtc-device-eval.ps1 `
   -ClientHost 192.168.1.20 `
   -PairingToken <runtime-token> `
-  -DurationSeconds 1800
+  -DurationSeconds 60
 ```
 
 See `evals/device/webrtc-lan-streaming.md` for the no-phone, no-USB-forwarding

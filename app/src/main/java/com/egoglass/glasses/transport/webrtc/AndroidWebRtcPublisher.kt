@@ -3,6 +3,7 @@ package com.egoglass.glasses.transport.webrtc
 import android.content.Context
 import android.util.Log
 import com.egoglass.glasses.capture.CapturedVideoFrame
+import com.egoglass.glasses.capture.CaptureConfig
 import org.json.JSONObject
 import org.webrtc.DataChannel
 import org.webrtc.DefaultVideoDecoderFactory
@@ -100,7 +101,7 @@ private class AndroidWebRtcPublisher(
     }
 
     @Synchronized
-    override fun connect(config: WebRtcSessionConfig) {
+    override fun connect(config: WebRtcSessionConfig, captureConfig: CaptureConfig) {
         if (state in setOf(
                 WebRtcPublisherState.SIGNALING,
                 WebRtcPublisherState.CONNECTING,
@@ -120,7 +121,7 @@ private class AndroidWebRtcPublisher(
             Thread(task, "egoglass-webrtc-signaling")
         }.also { executor ->
             executor.execute {
-                runCatching { initializePeer(sessionGeneration, config) }
+                runCatching { initializePeer(sessionGeneration, config, captureConfig) }
                     .onFailure { error -> fail(sessionGeneration, error) }
             }
         }
@@ -146,7 +147,11 @@ private class AndroidWebRtcPublisher(
         updateState(WebRtcPublisherState.IDLE, null)
     }
 
-    private fun initializePeer(sessionGeneration: Long, config: WebRtcSessionConfig) {
+    private fun initializePeer(
+        sessionGeneration: Long,
+        config: WebRtcSessionConfig,
+        captureConfig: CaptureConfig,
+    ) {
         PeerConnectionFactory.initialize(
             PeerConnectionFactory.InitializationOptions.builder(applicationContext)
                 .createInitializationOptions()
@@ -166,7 +171,11 @@ private class AndroidWebRtcPublisher(
         peerConnectionFactory = factory
 
         val source = factory.createVideoSource(false, false)
-        source.adaptOutputFormat(1280, 720, 20)
+        source.adaptOutputFormat(
+            captureConfig.width,
+            captureConfig.height,
+            captureConfig.framesPerSecond,
+        )
         source.capturerObserver.onCapturerStarted(true)
         videoSource = source
         val track = factory.createVideoTrack("camera-v1", source)
@@ -192,7 +201,7 @@ private class AndroidWebRtcPublisher(
             ),
         )
         preferH264(factory, transceiver)
-        check(peer.setBitrate(500_000, config.targetBitrateBps, 5_000_000)) {
+        check(peer.setBitrate(500_000, config.targetBitrateBps, 10_000_000)) {
             "Unable to set WebRTC bitrate"
         }
 

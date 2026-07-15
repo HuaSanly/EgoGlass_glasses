@@ -29,6 +29,7 @@ class DefaultStreamingSessionTest {
 
         publisher.emitState(WebRtcPublisherState.STREAMING)
         assertTrue(source.started)
+        assertEquals(CaptureConfig(), publisher.captureConfig)
         assertEquals(StreamingSessionState.CAPTURING, session.state)
 
         source.emitFrame()
@@ -72,6 +73,7 @@ class DefaultStreamingSessionTest {
     private class FakePublisher : WebRtcPublisher {
         private val listeners = mutableSetOf<WebRtcPublisherListener>()
         val frames = mutableListOf<CapturedVideoFrame>()
+        var captureConfig: CaptureConfig? = null
         override var state = WebRtcPublisherState.IDLE
 
         override fun addListener(listener: WebRtcPublisherListener) {
@@ -82,7 +84,8 @@ class DefaultStreamingSessionTest {
             listeners -= listener
         }
 
-        override fun connect(config: WebRtcSessionConfig) {
+        override fun connect(config: WebRtcSessionConfig, captureConfig: CaptureConfig) {
+            this.captureConfig = captureConfig
             emitState(WebRtcPublisherState.SIGNALING)
         }
 

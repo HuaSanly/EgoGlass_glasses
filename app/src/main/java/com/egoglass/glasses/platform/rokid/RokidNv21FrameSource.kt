@@ -31,6 +31,17 @@ private class RokidNv21FrameSource : VideoFrameSource {
 
         val activeHelper = CameraShareHelper()
         helper = activeHelper
+        runCatching { activeHelper.getSupportedPreviewSizes() }
+            .onSuccess { sizes ->
+                Log.i(
+                    TAG,
+                    "supported_preview_sizes=$sizes requested=" +
+                        "${config.width}x${config.height}@${config.framesPerSecond}",
+                )
+            }
+            .onFailure { error ->
+                Log.w(TAG, "supported_preview_sizes_unavailable", error)
+            }
         val rokidConfig = CameraShareConfig(
             previewWidth = config.width,
             previewHeight = config.height,
@@ -89,6 +100,7 @@ private class RokidNv21FrameSource : VideoFrameSource {
                     height: Int,
                     appliedPreviewFps: Int,
                 ) {
+                    Log.i(TAG, "capture_applied=${width}x$height@$appliedPreviewFps")
                     listener.onCameraOpened(width, height, appliedPreviewFps)
                 }
 

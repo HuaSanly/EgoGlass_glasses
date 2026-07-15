@@ -51,7 +51,7 @@ class DefaultStreamingSession(
             return
         }
         this.captureConfig = captureConfig
-        publisher.connect(sessionConfig)
+        publisher.connect(sessionConfig, captureConfig)
     }
 
     @Synchronized
