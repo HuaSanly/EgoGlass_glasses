@@ -20,8 +20,8 @@ features consume the project-owned `SdkConnection` contract.
 
 ## Direct WebRTC streaming
 
-The default profile requests pure-camera 1280 x 720 NV21 at 30 FPS and publishes
-H.264 at a 5 Mbps target bitrate. Capture and WebRTC adaptation use the same
+The default profile requests pure-camera 1920 x 1080 NV21 at 30 FPS and publishes
+H.264 at an 8 Mbps target bitrate. Capture and WebRTC adaptation use the same
 `CaptureConfig`, and frame metadata uses the `frame-metadata-v1` DataChannel.
 Runtime endpoint and pairing secrets are injected at launch and never stored:
 

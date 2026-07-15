@@ -13,7 +13,7 @@ class WebRtcSessionConfigTest {
         )
 
         assertEquals("192.168.1.20:8770", config.displayEndpoint)
-        assertEquals(5_000_000, config.targetBitrateBps)
+        assertEquals(8_000_000, config.targetBitrateBps)
         assertEquals(-1, config.toString().indexOf("runtime-pairing-token-123456"))
     }
 

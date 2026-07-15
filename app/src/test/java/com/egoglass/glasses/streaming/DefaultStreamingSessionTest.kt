@@ -30,6 +30,10 @@ class DefaultStreamingSessionTest {
         publisher.emitState(WebRtcPublisherState.STREAMING)
         assertTrue(source.started)
         assertEquals(CaptureConfig(), publisher.captureConfig)
+        assertEquals(1920, publisher.captureConfig?.width)
+        assertEquals(1080, publisher.captureConfig?.height)
+        assertEquals(30, publisher.captureConfig?.framesPerSecond)
+        assertEquals("1080p30", publisher.captureConfig?.captureConfigId)
         assertEquals(StreamingSessionState.CAPTURING, session.state)
 
         source.emitFrame()
