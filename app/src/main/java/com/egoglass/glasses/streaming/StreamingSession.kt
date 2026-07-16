@@ -10,6 +10,7 @@ enum class StreamingSessionState {
     CONNECTING,
     CAPTURING,
     STREAMING,
+    STOPPED,
     DISCONNECTED,
     ERROR,
 }

@@ -74,7 +74,10 @@ private class AndroidWebRtcPublisher(
     private var videoTrack: VideoTrack? = null
 
     @Volatile
-    private var dataChannel: DataChannel? = null
+    private var metadataChannel: DataChannel? = null
+
+    @Volatile
+    private var controlChannel: DataChannel? = null
 
     @Volatile
     private var eglBase: EglBase? = null
@@ -138,6 +141,13 @@ private class AndroidWebRtcPublisher(
         if (frameQueue.offerLatest(frame)) {
             framesDropped.incrementAndGet()
         }
+    }
+
+    override fun sendControlStatus(status: StreamControlStatus): Boolean {
+        val channel = controlChannel ?: return false
+        if (channel.state() != DataChannel.State.OPEN) return false
+        val payload = encodeStreamControlStatus(status)
+        return channel.send(DataChannel.Buffer(ByteBuffer.wrap(payload), false))
     }
 
     @Synchronized
@@ -217,10 +227,19 @@ private class AndroidWebRtcPublisher(
         }
         Log.i(TAG, "video_bitrate_bps=${config.targetBitrateBps}")
 
-        val channelInit = DataChannel.Init().apply {
+        val metadataChannelInit = DataChannel.Init().apply {
             ordered = true
         }
-        dataChannel = peer.createDataChannel(METADATA_CHANNEL, channelInit)
+        metadataChannel = peer.createDataChannel(METADATA_CHANNEL, metadataChannelInit)
+        val controlChannelInit = DataChannel.Init().apply {
+            ordered = true
+            maxRetransmitTimeMs = -1
+            maxRetransmits = -1
+        }
+        controlChannel = peer.createDataChannel(STREAM_CONTROL_CHANNEL, controlChannelInit)
+            .also { channel ->
+                channel.registerObserver(createControlChannelObserver(sessionGeneration, channel))
+            }
         peer.createOffer(
             object : BaseSdpObserver() {
                 override fun onCreateSuccess(description: SessionDescription) {
@@ -382,7 +401,7 @@ private class AndroidWebRtcPublisher(
     }
 
     private fun sendMetadata(frame: CapturedVideoFrame) {
-        val channel = dataChannel ?: return
+        val channel = metadataChannel ?: return
         if (channel.state() != DataChannel.State.OPEN) return
         if (channel.bufferedAmount() > MAX_METADATA_BUFFERED_BYTES) return
         val payload = JSONObject()
@@ -402,6 +421,41 @@ private class AndroidWebRtcPublisher(
             .toByteArray(StandardCharsets.UTF_8)
         if (channel.send(DataChannel.Buffer(ByteBuffer.wrap(payload), false))) {
             metadataSent.incrementAndGet()
+        }
+    }
+
+    private fun createControlChannelObserver(
+        sessionGeneration: Long,
+        channel: DataChannel,
+    ): DataChannel.Observer = object : DataChannel.Observer {
+        override fun onBufferedAmountChange(previousAmount: Long) = Unit
+
+        override fun onStateChange() {
+            if (sessionGeneration != generation.get() || controlChannel !== channel) return
+            if (channel.state() == DataChannel.State.OPEN) {
+                Log.i(TAG, "stream_control_state=open")
+                listeners.forEach(WebRtcPublisherListener::onControlChannelReady)
+            }
+        }
+
+        override fun onMessage(buffer: DataChannel.Buffer) {
+            if (sessionGeneration != generation.get() || controlChannel !== channel) return
+            runCatching {
+                val data = buffer.data.duplicate()
+                require(data.remaining() <= MAX_STREAM_CONTROL_PAYLOAD_BYTES) {
+                    "Stream-control payload size is invalid"
+                }
+                val payload = ByteArray(data.remaining())
+                data.get(payload)
+                decodeStreamControlCommand(payload, buffer.binary)
+            }.onSuccess { command ->
+                Log.i(TAG, "stream_control_action=${command.action.wireValue}")
+                listeners.forEach { listener -> listener.onControlCommand(command) }
+            }.onFailure { error ->
+                val detail = error.message ?: "Invalid stream-control command"
+                Log.w(TAG, "stream_control_rejected=$detail")
+                listeners.forEach { listener -> listener.onControlProtocolError(detail) }
+            }
         }
     }
 
@@ -498,11 +552,17 @@ private class AndroidWebRtcPublisher(
         frameExecutor = null
         signalingExecutor?.shutdownNow()
         signalingExecutor = null
-        dataChannel?.runCatching {
+        metadataChannel?.runCatching {
             close()
             dispose()
         }
-        dataChannel = null
+        metadataChannel = null
+        controlChannel?.runCatching {
+            unregisterObserver()
+            close()
+            dispose()
+        }
+        controlChannel = null
         peerConnection?.runCatching {
             close()
             dispose()

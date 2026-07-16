@@ -115,6 +115,9 @@ $logs = & $Adb logcat -d -s 'EgoGlassWebRtc:I' 'EgoGlassCapture:I' 'AndroidRunti
 if ($logs -match 'FATAL EXCEPTION') {
     throw 'GLASS-EVAL-WEBRTC-001 failed: AndroidRuntime crash detected.'
 }
+if ($logs -notmatch 'video_bitrate_bps=10000000') {
+    throw 'GLASS-EVAL-WEBRTC-001 failed: 10 Mbps WebRTC bitrate was not applied.'
+}
 Set-Content -LiteralPath (Join-Path $outputDirectory 'device.log') -Value $logs
 $lastStatus | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $outputDirectory 'status.json')
 

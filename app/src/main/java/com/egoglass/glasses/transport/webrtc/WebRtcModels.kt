@@ -2,7 +2,7 @@ package com.egoglass.glasses.transport.webrtc
 
 import java.net.URI
 
-internal const val DEFAULT_VIDEO_BITRATE_BPS = 20_000_000
+internal const val DEFAULT_VIDEO_BITRATE_BPS = 10_000_000
 
 data class WebRtcSessionConfig(
     val signalingUrl: String,
@@ -48,4 +48,10 @@ interface WebRtcPublisherListener {
     fun onStateChanged(state: WebRtcPublisherState, detail: String?)
 
     fun onStatsChanged(stats: WebRtcPublisherStats)
+
+    fun onControlChannelReady() = Unit
+
+    fun onControlCommand(command: StreamControlCommand) = Unit
+
+    fun onControlProtocolError(detail: String) = Unit
 }

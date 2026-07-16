@@ -21,8 +21,10 @@ features consume the project-owned `SdkConnection` contract.
 ## Direct WebRTC streaming
 
 The default profile requests pure-camera 1920 x 1080 NV21 at 30 FPS and publishes
-H.264 at a fixed 20 Mbps LAN trial bitrate. Capture and WebRTC adaptation use the same
-`CaptureConfig`, and frame metadata uses the `frame-metadata-v1` DataChannel.
+H.264 at a fixed 10 Mbps LAN bitrate. Capture and WebRTC adaptation use the same
+`CaptureConfig`. Frame metadata uses the `frame-metadata-v1` DataChannel, while
+the reliable ordered `stream-control-v1` DataChannel carries validated start and
+stop commands plus device status acknowledgements.
 Start the Windows workspace client first:
 
 ```powershell
@@ -34,7 +36,9 @@ Then open EgoGlass directly from the Glass3 application list. The app discovers
 the client on UDP port 8771, receives a nonce-bound process-only configuration,
 and starts streaming without ADB extras. Runtime endpoint and pairing secrets
 are never stored. Intent extras remain available only for device evals and
-diagnostics.
+diagnostics. Initial streaming remains automatic. After the WebRTC connection is
+established, the Windows client can stop camera capture and start it again
+without closing or renegotiating the peer connection.
 
 V1 signaling uses HTTP on a trusted LAN. Media remains encrypted by
 DTLS-SRTP. The application keeps the Glass3 display awake while streaming and

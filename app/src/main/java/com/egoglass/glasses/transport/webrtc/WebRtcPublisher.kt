@@ -14,5 +14,7 @@ interface WebRtcPublisher {
 
     fun offerFrame(frame: CapturedVideoFrame)
 
+    fun sendControlStatus(status: StreamControlStatus): Boolean
+
     fun close()
 }
