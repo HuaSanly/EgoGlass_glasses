@@ -13,7 +13,7 @@ class WebRtcSessionConfigTest {
         )
 
         assertEquals("192.168.1.20:8770", config.displayEndpoint)
-        assertEquals(8_000_000, config.targetBitrateBps)
+        assertEquals(10_000_000, config.targetBitrateBps)
         assertEquals(-1, config.toString().indexOf("runtime-pairing-token-123456"))
     }
 
@@ -26,6 +26,13 @@ class WebRtcSessionConfigTest {
             WebRtcSessionConfig(
                 "http://192.168.1.20:8770/api/v1/webrtc/sessions",
                 "short",
+            )
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            WebRtcSessionConfig(
+                "http://192.168.1.20:8770/api/v1/webrtc/sessions",
+                "runtime-pairing-token-123456",
+                targetBitrateBps = 10_000_001,
             )
         }
     }

@@ -313,6 +313,13 @@ class MainActivity : Activity() {
                 R.color.status_ready,
                 false,
             )
+            StreamingSessionState.STOPPED -> ScreenModel(
+                R.string.stream_stopped,
+                R.string.stream_stopped_detail,
+                streamDetail,
+                R.color.status_pending,
+                false,
+            )
             StreamingSessionState.DISCONNECTED -> ScreenModel(
                 R.string.stream_disconnected,
                 R.string.stream_disconnected_detail,

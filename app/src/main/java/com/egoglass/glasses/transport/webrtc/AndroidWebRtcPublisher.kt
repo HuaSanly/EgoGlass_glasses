@@ -41,9 +41,6 @@ private const val TAG = "EgoGlassWebRtc"
 private const val METADATA_CHANNEL = "frame-metadata-v1"
 private const val MAX_SIGNALING_RESPONSE_BYTES = 1_048_576
 private const val MAX_METADATA_BUFFERED_BYTES = 262_144L
-private const val MIN_VIDEO_BITRATE_BPS = 4_000_000
-private const val MAX_VIDEO_BITRATE_BPS = 10_000_000
-
 fun createAndroidWebRtcPublisher(context: Context): WebRtcPublisher =
     AndroidWebRtcPublisher(context.applicationContext)
 
@@ -77,7 +74,10 @@ private class AndroidWebRtcPublisher(
     private var videoTrack: VideoTrack? = null
 
     @Volatile
-    private var dataChannel: DataChannel? = null
+    private var metadataChannel: DataChannel? = null
+
+    @Volatile
+    private var controlChannel: DataChannel? = null
 
     @Volatile
     private var eglBase: EglBase? = null
@@ -143,6 +143,13 @@ private class AndroidWebRtcPublisher(
         }
     }
 
+    override fun sendControlStatus(status: StreamControlStatus): Boolean {
+        val channel = controlChannel ?: return false
+        if (channel.state() != DataChannel.State.OPEN) return false
+        val payload = encodeStreamControlStatus(status)
+        return channel.send(DataChannel.Buffer(ByteBuffer.wrap(payload), false))
+    }
+
     @Synchronized
     override fun close() {
         generation.incrementAndGet()
@@ -204,21 +211,35 @@ private class AndroidWebRtcPublisher(
             ),
         )
         preferH264(factory, transceiver)
-        configureHighQualityVideoSender(transceiver, captureConfig.framesPerSecond)
+        configureHighQualityVideoSender(
+            transceiver,
+            captureConfig.framesPerSecond,
+            config.targetBitrateBps,
+        )
         check(
             peer.setBitrate(
-                MIN_VIDEO_BITRATE_BPS,
                 config.targetBitrateBps,
-                MAX_VIDEO_BITRATE_BPS,
+                config.targetBitrateBps,
+                config.targetBitrateBps,
             )
         ) {
             "Unable to set WebRTC bitrate"
         }
+        Log.i(TAG, "video_bitrate_bps=${config.targetBitrateBps}")
 
-        val channelInit = DataChannel.Init().apply {
+        val metadataChannelInit = DataChannel.Init().apply {
             ordered = true
         }
-        dataChannel = peer.createDataChannel(METADATA_CHANNEL, channelInit)
+        metadataChannel = peer.createDataChannel(METADATA_CHANNEL, metadataChannelInit)
+        val controlChannelInit = DataChannel.Init().apply {
+            ordered = true
+            maxRetransmitTimeMs = -1
+            maxRetransmits = -1
+        }
+        controlChannel = peer.createDataChannel(STREAM_CONTROL_CHANNEL, controlChannelInit)
+            .also { channel ->
+                channel.registerObserver(createControlChannelObserver(sessionGeneration, channel))
+            }
         peer.createOffer(
             object : BaseSdpObserver() {
                 override fun onCreateSuccess(description: SessionDescription) {
@@ -380,7 +401,7 @@ private class AndroidWebRtcPublisher(
     }
 
     private fun sendMetadata(frame: CapturedVideoFrame) {
-        val channel = dataChannel ?: return
+        val channel = metadataChannel ?: return
         if (channel.state() != DataChannel.State.OPEN) return
         if (channel.bufferedAmount() > MAX_METADATA_BUFFERED_BYTES) return
         val payload = JSONObject()
@@ -403,6 +424,41 @@ private class AndroidWebRtcPublisher(
         }
     }
 
+    private fun createControlChannelObserver(
+        sessionGeneration: Long,
+        channel: DataChannel,
+    ): DataChannel.Observer = object : DataChannel.Observer {
+        override fun onBufferedAmountChange(previousAmount: Long) = Unit
+
+        override fun onStateChange() {
+            if (sessionGeneration != generation.get() || controlChannel !== channel) return
+            if (channel.state() == DataChannel.State.OPEN) {
+                Log.i(TAG, "stream_control_state=open")
+                listeners.forEach(WebRtcPublisherListener::onControlChannelReady)
+            }
+        }
+
+        override fun onMessage(buffer: DataChannel.Buffer) {
+            if (sessionGeneration != generation.get() || controlChannel !== channel) return
+            runCatching {
+                val data = buffer.data.duplicate()
+                require(data.remaining() <= MAX_STREAM_CONTROL_PAYLOAD_BYTES) {
+                    "Stream-control payload size is invalid"
+                }
+                val payload = ByteArray(data.remaining())
+                data.get(payload)
+                decodeStreamControlCommand(payload, buffer.binary)
+            }.onSuccess { command ->
+                Log.i(TAG, "stream_control_action=${command.action.wireValue}")
+                listeners.forEach { listener -> listener.onControlCommand(command) }
+            }.onFailure { error ->
+                val detail = error.message ?: "Invalid stream-control command"
+                Log.w(TAG, "stream_control_rejected=$detail")
+                listeners.forEach { listener -> listener.onControlProtocolError(detail) }
+            }
+        }
+    }
+
     private fun preferH264(factory: PeerConnectionFactory, transceiver: RtpTransceiver) {
         val h264Codecs = factory
             .getRtpSenderCapabilities(MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO)
@@ -415,13 +471,14 @@ private class AndroidWebRtcPublisher(
     private fun configureHighQualityVideoSender(
         transceiver: RtpTransceiver,
         framesPerSecond: Int,
+        targetBitrateBps: Int,
     ) {
         val parameters = transceiver.sender.parameters
         parameters.degradationPreference =
             RtpParameters.DegradationPreference.MAINTAIN_RESOLUTION
         parameters.encodings.forEach { encoding ->
-            encoding.minBitrateBps = MIN_VIDEO_BITRATE_BPS
-            encoding.maxBitrateBps = MAX_VIDEO_BITRATE_BPS
+            encoding.minBitrateBps = targetBitrateBps
+            encoding.maxBitrateBps = targetBitrateBps
             encoding.maxFramerate = framesPerSecond
             encoding.scaleResolutionDownBy = 1.0
         }
@@ -495,11 +552,17 @@ private class AndroidWebRtcPublisher(
         frameExecutor = null
         signalingExecutor?.shutdownNow()
         signalingExecutor = null
-        dataChannel?.runCatching {
+        metadataChannel?.runCatching {
             close()
             dispose()
         }
-        dataChannel = null
+        metadataChannel = null
+        controlChannel?.runCatching {
+            unregisterObserver()
+            close()
+            dispose()
+        }
+        controlChannel = null
         peerConnection?.runCatching {
             close()
             dispose()

@@ -39,6 +39,8 @@
     <string name="stream_capturing_detail">Starting the Glass3 video source</string>
     <string name="stream_live">STREAMING LIVE</string>
     <string name="stream_live_detail">Direct video is connected to the client</string>
+    <string name="stream_stopped">VIDEO STOPPED</string>
+    <string name="stream_stopped_detail">The client control connection remains active</string>
     <string name="stream_disconnected">STREAM LOST</string>
     <string name="stream_disconnected_detail">The client media connection was lost</string>
     <string name="stream_error">STREAM ERROR</string>
