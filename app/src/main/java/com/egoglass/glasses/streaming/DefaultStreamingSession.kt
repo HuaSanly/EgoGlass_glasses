@@ -4,6 +4,10 @@ import com.egoglass.glasses.capture.CaptureConfig
 import com.egoglass.glasses.capture.CapturedVideoFrame
 import com.egoglass.glasses.capture.VideoFrameSource
 import com.egoglass.glasses.capture.VideoFrameSourceListener
+import com.egoglass.glasses.sensors.ImuCapabilities
+import com.egoglass.glasses.sensors.ImuSample
+import com.egoglass.glasses.sensors.ImuSource
+import com.egoglass.glasses.sensors.ImuSourceListener
 import com.egoglass.glasses.transport.webrtc.WebRtcPublisher
 import com.egoglass.glasses.transport.webrtc.WebRtcPublisherListener
 import com.egoglass.glasses.transport.webrtc.WebRtcPublisherState
@@ -18,7 +22,8 @@ import java.util.concurrent.CopyOnWriteArraySet
 class DefaultStreamingSession(
     private val frameSource: VideoFrameSource,
     private val publisher: WebRtcPublisher,
-) : StreamingSession, WebRtcPublisherListener, VideoFrameSourceListener {
+    private val imuSource: ImuSource,
+) : StreamingSession, WebRtcPublisherListener, VideoFrameSourceListener, ImuSourceListener {
     private val listeners = CopyOnWriteArraySet<StreamingSessionListener>()
 
     @Volatile
@@ -33,6 +38,9 @@ class DefaultStreamingSession(
 
     @Volatile
     private var captureDesired = true
+
+    @Volatile
+    private var imuStarted = false
 
     private var captureConfig = CaptureConfig()
 
@@ -74,6 +82,7 @@ class DefaultStreamingSession(
         captureStarted = false
         cameraOpened = false
         frameSource.stop()
+        stopImu()
         publisher.close()
         updateState(StreamingSessionState.IDLE, null)
     }
@@ -81,10 +90,14 @@ class DefaultStreamingSession(
     @Synchronized
     override fun onStateChanged(state: WebRtcPublisherState, detail: String?) {
         when (state) {
-            WebRtcPublisherState.IDLE -> updateState(StreamingSessionState.IDLE, detail)
+            WebRtcPublisherState.IDLE -> {
+                stopImu()
+                updateState(StreamingSessionState.IDLE, detail)
+            }
             WebRtcPublisherState.SIGNALING -> updateState(StreamingSessionState.SIGNALING, detail)
             WebRtcPublisherState.CONNECTING -> updateState(StreamingSessionState.CONNECTING, detail)
             WebRtcPublisherState.STREAMING -> {
+                startImu()
                 if (captureDesired) {
                     startCapture()
                 } else {
@@ -94,11 +107,13 @@ class DefaultStreamingSession(
             }
             WebRtcPublisherState.DISCONNECTED -> {
                 stopCapture()
+                stopImu()
                 updateState(StreamingSessionState.DISCONNECTED, detail)
                 sendControlStatus(null, StreamControlState.ERROR, detail)
             }
             WebRtcPublisherState.ERROR -> {
                 stopCapture()
+                stopImu()
                 updateState(StreamingSessionState.ERROR, detail)
                 sendControlStatus(null, StreamControlState.ERROR, detail)
             }
@@ -121,6 +136,16 @@ class DefaultStreamingSession(
     override fun onFrame(frame: CapturedVideoFrame) {
         if (captureStarted) publisher.offerFrame(frame)
     }
+
+    override fun onCapabilities(capabilities: ImuCapabilities) {
+        if (imuStarted) publisher.sendImuCapabilities(capabilities)
+    }
+
+    override fun onSample(sample: ImuSample) {
+        if (imuStarted) publisher.offerImuSample(sample)
+    }
+
+    override fun onImuError(message: String) = Unit
 
     override fun onCameraClosed() {
         if (captureStarted) {
@@ -194,6 +219,20 @@ class DefaultStreamingSession(
         }
         updateState(StreamingSessionState.STOPPED, "Video stopped by client")
         sendControlStatus(commandId, StreamControlState.STOPPED)
+    }
+
+    @Synchronized
+    private fun startImu() {
+        if (imuStarted) return
+        imuStarted = true
+        imuSource.start(this)
+    }
+
+    @Synchronized
+    private fun stopImu() {
+        if (!imuStarted) return
+        imuStarted = false
+        imuSource.stop()
     }
 
     private fun currentControlState(): StreamControlState = when {

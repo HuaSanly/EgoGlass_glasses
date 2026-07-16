@@ -42,6 +42,9 @@ data class WebRtcPublisherStats(
     val framesPublished: Long = 0,
     val framesDropped: Long = 0,
     val metadataSent: Long = 0,
+    val imuSamplesOffered: Long = 0,
+    val imuSamplesSent: Long = 0,
+    val imuSamplesDropped: Long = 0,
 )
 
 interface WebRtcPublisherListener {

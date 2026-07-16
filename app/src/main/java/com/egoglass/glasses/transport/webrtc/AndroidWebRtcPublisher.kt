@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Log
 import com.egoglass.glasses.capture.CapturedVideoFrame
 import com.egoglass.glasses.capture.CaptureConfig
+import com.egoglass.glasses.sensors.ImuCapabilities
+import com.egoglass.glasses.sensors.ImuSample
 import org.json.JSONObject
 import org.webrtc.DataChannel
 import org.webrtc.DefaultVideoDecoderFactory
@@ -56,6 +58,9 @@ private class AndroidWebRtcPublisher(
     private val framesPublished = AtomicLong(0)
     private val framesDropped = AtomicLong(0)
     private val metadataSent = AtomicLong(0)
+    private val imuSamplesOffered = AtomicLong(0)
+    private val imuSamplesSent = AtomicLong(0)
+    private val imuSamplesDropped = AtomicLong(0)
 
     @Volatile
     override var state: WebRtcPublisherState = WebRtcPublisherState.IDLE
@@ -78,6 +83,12 @@ private class AndroidWebRtcPublisher(
 
     @Volatile
     private var controlChannel: DataChannel? = null
+
+    @Volatile
+    private var imuChannel: DataChannel? = null
+
+    @Volatile
+    private var imuCapabilitiesPayload: ByteArray? = null
 
     @Volatile
     private var eglBase: EglBase? = null
@@ -148,6 +159,25 @@ private class AndroidWebRtcPublisher(
         if (channel.state() != DataChannel.State.OPEN) return false
         val payload = encodeStreamControlStatus(status)
         return channel.send(DataChannel.Buffer(ByteBuffer.wrap(payload), false))
+    }
+
+    override fun sendImuCapabilities(capabilities: ImuCapabilities): Boolean {
+        val payload = encodeImuCapabilities(capabilities)
+        imuCapabilitiesPayload = payload
+        return sendImuPayload(payload)
+    }
+
+    override fun offerImuSample(sample: ImuSample) {
+        val offered = imuSamplesOffered.incrementAndGet()
+        if (sendImuPayload(encodeImuSample(sample))) {
+            imuSamplesSent.incrementAndGet()
+        } else {
+            imuSamplesDropped.incrementAndGet()
+        }
+        if (offered % 500L == 0L) {
+            imuCapabilitiesPayload?.let(::sendImuPayload)
+            notifyStats()
+        }
     }
 
     @Synchronized
@@ -240,6 +270,12 @@ private class AndroidWebRtcPublisher(
             .also { channel ->
                 channel.registerObserver(createControlChannelObserver(sessionGeneration, channel))
             }
+        imuChannel = peer.createDataChannel(
+            IMU_TELEMETRY_CHANNEL,
+            createImuTelemetryChannelInit(),
+        ).also { channel ->
+            channel.registerObserver(createImuChannelObserver(sessionGeneration, channel))
+        }
         peer.createOffer(
             object : BaseSdpObserver() {
                 override fun onCreateSuccess(description: SessionDescription) {
@@ -459,6 +495,38 @@ private class AndroidWebRtcPublisher(
         }
     }
 
+    private fun createImuChannelObserver(
+        sessionGeneration: Long,
+        channel: DataChannel,
+    ): DataChannel.Observer = object : DataChannel.Observer {
+        override fun onBufferedAmountChange(previousAmount: Long) = Unit
+
+        override fun onStateChange() {
+            if (sessionGeneration != generation.get() || imuChannel !== channel) return
+            if (channel.state() == DataChannel.State.OPEN) {
+                Log.i(TAG, "imu_channel_state=open")
+                imuCapabilitiesPayload?.let(::sendImuPayload)
+            }
+        }
+
+        override fun onMessage(buffer: DataChannel.Buffer) = Unit
+    }
+
+    private fun sendImuPayload(payload: ByteArray): Boolean {
+        val channel = imuChannel ?: return false
+        return runCatching {
+            if (!shouldSendImuTelemetry(
+                    channel.state() == DataChannel.State.OPEN,
+                    channel.bufferedAmount(),
+                    payload.size,
+                )
+            ) {
+                return false
+            }
+            channel.send(DataChannel.Buffer(ByteBuffer.wrap(payload), false))
+        }.getOrDefault(false)
+    }
+
     private fun preferH264(factory: PeerConnectionFactory, transceiver: RtpTransceiver) {
         val h264Codecs = factory
             .getRtpSenderCapabilities(MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO)
@@ -526,6 +594,9 @@ private class AndroidWebRtcPublisher(
         framesPublished = framesPublished.get(),
         framesDropped = framesDropped.get(),
         metadataSent = metadataSent.get(),
+        imuSamplesOffered = imuSamplesOffered.get(),
+        imuSamplesSent = imuSamplesSent.get(),
+        imuSamplesDropped = imuSamplesDropped.get(),
     )
 
     private fun notifyStats() {
@@ -533,7 +604,8 @@ private class AndroidWebRtcPublisher(
         Log.i(
             TAG,
             "frames_published=${stats.framesPublished} frames_dropped=${stats.framesDropped} " +
-                "metadata_sent=${stats.metadataSent}",
+                "metadata_sent=${stats.metadataSent} imu_samples_sent=${stats.imuSamplesSent} " +
+                "imu_samples_dropped=${stats.imuSamplesDropped}",
         )
         listeners.forEach { listener -> listener.onStatsChanged(stats) }
     }
@@ -543,6 +615,10 @@ private class AndroidWebRtcPublisher(
         framesPublished.set(0)
         framesDropped.set(0)
         metadataSent.set(0)
+        imuSamplesOffered.set(0)
+        imuSamplesSent.set(0)
+        imuSamplesDropped.set(0)
+        imuCapabilitiesPayload = null
     }
 
     private fun closeResources() {
@@ -563,6 +639,13 @@ private class AndroidWebRtcPublisher(
             dispose()
         }
         controlChannel = null
+        imuChannel?.runCatching {
+            unregisterObserver()
+            close()
+            dispose()
+        }
+        imuChannel = null
+        imuCapabilitiesPayload = null
         peerConnection?.runCatching {
             close()
             dispose()

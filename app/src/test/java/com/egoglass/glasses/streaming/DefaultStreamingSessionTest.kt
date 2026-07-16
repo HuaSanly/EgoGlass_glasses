@@ -4,6 +4,10 @@ import com.egoglass.glasses.capture.CaptureConfig
 import com.egoglass.glasses.capture.CapturedVideoFrame
 import com.egoglass.glasses.capture.VideoFrameSource
 import com.egoglass.glasses.capture.VideoFrameSourceListener
+import com.egoglass.glasses.sensors.ImuCapabilities
+import com.egoglass.glasses.sensors.ImuSample
+import com.egoglass.glasses.sensors.ImuSource
+import com.egoglass.glasses.sensors.ImuSourceListener
 import com.egoglass.glasses.transport.webrtc.WebRtcPublisher
 import com.egoglass.glasses.transport.webrtc.WebRtcPublisherListener
 import com.egoglass.glasses.transport.webrtc.WebRtcPublisherState
@@ -22,7 +26,8 @@ class DefaultStreamingSessionTest {
     fun opensCameraOnlyAfterPeerConnectsAndStopsOnDisconnect() {
         val source = FakeSource()
         val publisher = FakePublisher()
-        val session = DefaultStreamingSession(source, publisher)
+        val imuSource = FakeImuSource()
+        val session = DefaultStreamingSession(source, publisher, imuSource)
         val config = WebRtcSessionConfig(
             "http://192.168.1.20:8770/api/v1/webrtc/sessions",
             "runtime-pairing-token-123456",
@@ -33,6 +38,7 @@ class DefaultStreamingSessionTest {
 
         publisher.emitState(WebRtcPublisherState.STREAMING)
         assertTrue(source.started)
+        assertTrue(imuSource.started)
         assertEquals(CaptureConfig(), publisher.captureConfig)
         assertEquals(1920, publisher.captureConfig?.width)
         assertEquals(1080, publisher.captureConfig?.height)
@@ -40,11 +46,27 @@ class DefaultStreamingSessionTest {
         assertEquals("1080p30", publisher.captureConfig?.captureConfigId)
         assertEquals(StreamingSessionState.CAPTURING, session.state)
 
+        val capabilities = ImuCapabilities(10_000, emptyList(), emptyList())
+        val sample = ImuSample(
+            sensorType = com.egoglass.glasses.sensors.ImuSensorType.ACCELEROMETER,
+            sequenceNumber = 0,
+            sensorEventMonotonicNs = 100,
+            receivedAtElapsedRealtimeNs = 110,
+            accuracy = 3,
+            values = listOf(1.0, 2.0, 3.0),
+        )
+        imuSource.emitCapabilities(capabilities)
+        imuSource.emitSample(sample)
+        assertEquals(listOf(capabilities), publisher.imuCapabilities)
+        assertEquals(listOf(sample), publisher.imuSamples)
+
         source.emitFrame()
         assertEquals(1, publisher.frames.size)
 
         publisher.emitState(WebRtcPublisherState.DISCONNECTED)
         assertFalse(source.started)
+        assertFalse(imuSource.started)
+        assertEquals(1, imuSource.stopCount)
         assertEquals(StreamingSessionState.DISCONNECTED, session.state)
     }
 
@@ -52,7 +74,8 @@ class DefaultStreamingSessionTest {
     fun remoteStopKeepsPeerConnectedAndRemoteStartResumesCaptureIdempotently() {
         val source = FakeSource()
         val publisher = FakePublisher()
-        val session = DefaultStreamingSession(source, publisher)
+        val imuSource = FakeImuSource()
+        val session = DefaultStreamingSession(source, publisher, imuSource)
         val config = WebRtcSessionConfig(
             "http://192.168.1.20:8770/api/v1/webrtc/sessions",
             "runtime-pairing-token-123456",
@@ -66,6 +89,8 @@ class DefaultStreamingSessionTest {
         val stopId = "0123456789abcdef0123456789abcdef"
         publisher.emitControl(StreamControlCommand(stopId, StreamControlAction.STOP))
         assertFalse(source.started)
+        assertTrue(imuSource.started)
+        assertEquals(0, imuSource.stopCount)
         assertEquals(1, source.stopCount)
         assertEquals(0, publisher.closeCount)
         assertEquals(WebRtcPublisherState.STREAMING, publisher.state)
@@ -104,7 +129,7 @@ class DefaultStreamingSessionTest {
     fun controlChannelReportsCurrentStateAndProtocolErrors() {
         val source = FakeSource()
         val publisher = FakePublisher()
-        DefaultStreamingSession(source, publisher)
+        DefaultStreamingSession(source, publisher, FakeImuSource())
 
         publisher.emitControlReady()
         assertEquals(StreamControlStatus(null, StreamControlState.READY), publisher.statuses.last())
@@ -154,12 +179,43 @@ class DefaultStreamingSessionTest {
         }
     }
 
+    private class FakeImuSource : ImuSource {
+        var started = false
+        var startCount = 0
+        var stopCount = 0
+        private var listener: ImuSourceListener? = null
+
+        override fun start(listener: ImuSourceListener) {
+            if (started) return
+            started = true
+            startCount += 1
+            this.listener = listener
+        }
+
+        override fun stop() {
+            if (!started) return
+            started = false
+            stopCount += 1
+            listener = null
+        }
+
+        fun emitCapabilities(capabilities: ImuCapabilities) {
+            listener?.onCapabilities(capabilities)
+        }
+
+        fun emitSample(sample: ImuSample) {
+            listener?.onSample(sample)
+        }
+    }
+
     private class FakePublisher : WebRtcPublisher {
         private val listeners = mutableSetOf<WebRtcPublisherListener>()
         val frames = mutableListOf<CapturedVideoFrame>()
         var captureConfig: CaptureConfig? = null
         var closeCount = 0
         val statuses = mutableListOf<StreamControlStatus>()
+        val imuCapabilities = mutableListOf<ImuCapabilities>()
+        val imuSamples = mutableListOf<ImuSample>()
         override var state = WebRtcPublisherState.IDLE
 
         override fun addListener(listener: WebRtcPublisherListener) {
@@ -182,6 +238,15 @@ class DefaultStreamingSessionTest {
         override fun sendControlStatus(status: StreamControlStatus): Boolean {
             statuses += status
             return true
+        }
+
+        override fun sendImuCapabilities(capabilities: ImuCapabilities): Boolean {
+            imuCapabilities += capabilities
+            return true
+        }
+
+        override fun offerImuSample(sample: ImuSample) {
+            imuSamples += sample
         }
 
         override fun close() {
