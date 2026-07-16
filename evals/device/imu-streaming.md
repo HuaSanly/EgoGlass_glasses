@@ -32,7 +32,9 @@ cd ..\..\..\EgoGlass_glasses
 ```
 
 The script requires exactly one `RG-glasses` ADB device and a `wlan0` route to
-the client. It records `dumpsys sensorservice`, Android logs, complete
+the client. Glasses signaling uses the client's LAN address, while the protected
+IMU status endpoint is queried through `127.0.0.1`. It records
+`dumpsys sensorservice`, Android logs, complete
 capabilities, final bounded status, firmware, and observed rates under ignored
 `app/build/evals/imu/` output.
 

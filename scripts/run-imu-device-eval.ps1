@@ -12,6 +12,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'webrtc-device-eval-utils.ps1')
+. (Join-Path $PSScriptRoot 'imu-device-eval-utils.ps1')
 if ($PairingToken.Length -lt 16) {
     throw 'PairingToken must contain at least 16 characters.'
 }
@@ -39,7 +40,8 @@ if (-not (Test-DirectWlanRoute -Route $route -ClientHost $ClientHost)) {
 }
 
 $baseUrl = "http://${ClientHost}:$ClientPort"
-$health = Invoke-RestMethod -Uri "$baseUrl/api/v1/health" -TimeoutSec 5
+$statusUrl = Get-ImuLoopbackStatusUrl -ClientPort $ClientPort
+$health = Invoke-RestMethod -Uri "http://127.0.0.1:$ClientPort/api/v1/health" -TimeoutSec 5
 if ($health.status -ne 'ok') {
     throw 'Ingest gateway health check failed.'
 }
@@ -68,7 +70,7 @@ foreach ($round in 1..2) {
     $lastStatus = $null
     do {
         Start-Sleep -Seconds 2
-        $lastStatus = Invoke-RestMethod -Uri "$baseUrl/api/v1/webrtc/imu/status" -TimeoutSec 5
+        $lastStatus = Invoke-RestMethod -Uri $statusUrl -TimeoutSec 5
         Write-Output (
             "GLASS-EVAL-IMU-001 round=$round state=$($lastStatus.channel_state) " +
             "samples=$($lastStatus.samples_received) malformed=$($lastStatus.malformed_messages)"
@@ -102,10 +104,11 @@ foreach ($round in 1..2) {
     }
 
     $logs = & $Adb logcat -d -s 'EgoGlassImu:I' 'EgoGlassWebRtc:I' 'AndroidRuntime:E' '*:S'
-    if ($logs -match 'FATAL EXCEPTION') {
+    $logText = $logs -join "`n"
+    if ($logText -match 'FATAL EXCEPTION') {
         throw "GLASS-EVAL-IMU-001 round $round failed: AndroidRuntime crash detected."
     }
-    if ($logs -notmatch 'imu_state=started registered_sensors=2') {
+    if (-not (Test-TwoImuSensorsRegistered -LogLines $logs)) {
         throw "GLASS-EVAL-IMU-001 round $round failed: two sensors were not registered."
     }
     Set-Content -LiteralPath (Join-Path $outputDirectory "device-round-$round.log") -Value $logs
