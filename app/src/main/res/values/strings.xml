@@ -3,6 +3,7 @@
     <string name="app_name">EgoGlass</string>
     <string name="product_label">EGOGLASS / GLASSES</string>
     <string name="runtime_identity">SDK 2.2.0-E  |  EgoGlassGlasses</string>
+    <string name="runtime_discovery">UDP 8771  |  SAME WIFI</string>
     <string name="status_indicator_description">SDK connection status</string>
     <string name="sdk_ready">SDK READY</string>
     <string name="sdk_pending">SDK WAIT</string>
@@ -22,7 +23,11 @@
     <string name="retry">RETRY</string>
 
     <string name="stream_waiting">WAITING FOR CLIENT</string>
-    <string name="stream_waiting_detail">Client configuration is not present</string>
+    <string name="stream_waiting_detail">Start the Windows client, then reopen EgoGlass</string>
+    <string name="stream_discovering">FINDING CLIENT</string>
+    <string name="stream_discovering_detail">Searching this Wi-Fi network for EgoGlass</string>
+    <string name="stream_client_not_found">CLIENT NOT FOUND</string>
+    <string name="stream_client_not_found_detail">Start the Windows client and press retry</string>
     <string name="stream_config_error">CONFIGURATION ERROR</string>
     <string name="camera_permission">CAMERA PERMISSION</string>
     <string name="camera_permission_detail">Camera access is required for streaming</string>

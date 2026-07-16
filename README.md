@@ -23,13 +23,18 @@ features consume the project-owned `SdkConnection` contract.
 The default profile requests pure-camera 1920 x 1080 NV21 at 30 FPS and publishes
 H.264 at an 8 Mbps target bitrate. Capture and WebRTC adaptation use the same
 `CaptureConfig`, and frame metadata uses the `frame-metadata-v1` DataChannel.
-Runtime endpoint and pairing secrets are injected at launch and never stored:
+Start the Windows workspace client first:
 
 ```powershell
-adb shell am start -n com.egoglass.glasses/.MainActivity `
-  --es signaling_url http://192.168.1.20:8770/api/v1/webrtc/sessions `
-  --es pairing_token <runtime-token>
+cd ..\EgoGlass_client
+.\scripts\start-client.ps1
 ```
+
+Then open EgoGlass directly from the Glass3 application list. The app discovers
+the client on UDP port 8771, receives a nonce-bound process-only configuration,
+and starts streaming without ADB extras. Runtime endpoint and pairing secrets
+are never stored. Intent extras remain available only for device evals and
+diagnostics.
 
 V1 signaling uses HTTP on a trusted LAN. Media remains encrypted by
 DTLS-SRTP. The application keeps the Glass3 display awake while streaming and

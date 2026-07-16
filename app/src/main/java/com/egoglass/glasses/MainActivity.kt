@@ -16,6 +16,8 @@ import com.egoglass.glasses.domain.connection.SdkConnectionState
 import com.egoglass.glasses.streaming.StreamingSession
 import com.egoglass.glasses.streaming.StreamingSessionListener
 import com.egoglass.glasses.streaming.StreamingSessionState
+import com.egoglass.glasses.transport.discovery.ClientDiscovery
+import com.egoglass.glasses.transport.discovery.ClientDiscoveryListener
 import com.egoglass.glasses.transport.webrtc.WebRtcPublisherStats
 import com.egoglass.glasses.transport.webrtc.WebRtcSessionConfig
 
@@ -28,6 +30,8 @@ class MainActivity : Activity() {
         get() = (application as EgoGlassApplication).sdkConnection
     private val streamingSession: StreamingSession
         get() = (application as EgoGlassApplication).streamingSession
+    private val clientDiscovery: ClientDiscovery
+        get() = (application as EgoGlassApplication).clientDiscovery
 
     private lateinit var sdkStatus: TextView
     private lateinit var statusIndicator: View
@@ -43,6 +47,8 @@ class MainActivity : Activity() {
     private var stats = WebRtcPublisherStats()
     private var sessionConfig: WebRtcSessionConfig? = null
     private var configError: String? = null
+    private var discoveryState = DiscoveryState.IDLE
+    private var discoveryError: String? = null
     private var permissionRequested = false
 
     private val sdkListener = SdkConnectionListener { state ->
@@ -64,6 +70,25 @@ class MainActivity : Activity() {
         override fun onStatsChanged(stats: WebRtcPublisherStats) {
             runOnUiThread {
                 this@MainActivity.stats = stats
+                render()
+            }
+        }
+    }
+    private val discoveryListener = object : ClientDiscoveryListener {
+        override fun onDiscovered(config: WebRtcSessionConfig) {
+            runOnUiThread {
+                sessionConfig = config
+                discoveryState = DiscoveryState.READY
+                discoveryError = null
+                maybeStartStreaming()
+                render()
+            }
+        }
+
+        override fun onError(message: String) {
+            runOnUiThread {
+                discoveryState = DiscoveryState.ERROR
+                discoveryError = message
                 render()
             }
         }
@@ -91,7 +116,7 @@ class MainActivity : Activity() {
         setIntent(intent)
         streamingSession.stop()
         readSessionConfig(intent)
-        maybeStartStreaming()
+        if (sessionConfig == null) discoverClient() else maybeStartStreaming()
         render()
     }
 
@@ -100,9 +125,11 @@ class MainActivity : Activity() {
         connection.addListener(sdkListener)
         streamingSession.addListener(streamingListener)
         connection.start()
+        if (sessionConfig == null) discoverClient()
     }
 
     override fun onStop() {
+        clientDiscovery.cancel()
         streamingSession.stop()
         streamingSession.removeListener(streamingListener)
         connection.removeListener(sdkListener)
@@ -134,13 +161,26 @@ class MainActivity : Activity() {
         val pairingToken = sourceIntent.getStringExtra(EXTRA_PAIRING_TOKEN)
         sourceIntent.removeExtra(EXTRA_PAIRING_TOKEN)
         configError = null
+        discoveryError = null
         sessionConfig = if (signalingUrl.isNullOrBlank() || pairingToken.isNullOrBlank()) {
+            discoveryState = DiscoveryState.IDLE
             null
         } else {
             runCatching { WebRtcSessionConfig(signalingUrl, pairingToken) }
                 .onFailure { configError = "Invalid client configuration" }
+                .onSuccess { discoveryState = DiscoveryState.READY }
                 .getOrNull()
         }
+    }
+
+    private fun discoverClient() {
+        clientDiscovery.cancel()
+        sessionConfig = null
+        configError = null
+        discoveryError = null
+        discoveryState = DiscoveryState.DISCOVERING
+        render()
+        clientDiscovery.discover(discoveryListener)
     }
 
     private fun maybeStartStreaming() {
@@ -165,7 +205,7 @@ class MainActivity : Activity() {
             return
         }
         streamingSession.stop()
-        maybeStartStreaming()
+        discoverClient()
     }
 
     private fun render() {
@@ -186,7 +226,13 @@ class MainActivity : Activity() {
         } else {
             ""
         }
-        runtimeIdentity.text = sessionConfig?.displayEndpoint ?: getString(R.string.runtime_identity)
+        runtimeIdentity.text = sessionConfig?.displayEndpoint ?: getString(
+            if (discoveryState == DiscoveryState.DISCOVERING) {
+                R.string.runtime_discovery
+            } else {
+                R.string.runtime_identity
+            }
+        )
         retryButton.visibility = if (model.canRetry) View.VISIBLE else View.INVISIBLE
         if (model.canRetry) retryButton.requestFocus()
     }
@@ -202,13 +248,29 @@ class MainActivity : Activity() {
             )
         }
         if (sessionConfig == null) {
-            return ScreenModel(
-                R.string.stream_waiting,
-                R.string.stream_waiting_detail,
-                null,
-                R.color.status_inactive,
-                false,
-            )
+            return when (discoveryState) {
+                DiscoveryState.DISCOVERING -> ScreenModel(
+                    R.string.stream_discovering,
+                    R.string.stream_discovering_detail,
+                    null,
+                    R.color.status_pending,
+                    false,
+                )
+                DiscoveryState.ERROR -> ScreenModel(
+                    R.string.stream_client_not_found,
+                    R.string.stream_client_not_found_detail,
+                    discoveryError,
+                    R.color.status_error,
+                    true,
+                )
+                else -> ScreenModel(
+                    R.string.stream_waiting,
+                    R.string.stream_waiting_detail,
+                    null,
+                    R.color.status_inactive,
+                    false,
+                )
+            }
         }
         if (sdkState != SdkConnectionState.READY) return sdkModel()
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
@@ -303,4 +365,11 @@ class MainActivity : Activity() {
         val color: Int,
         val canRetry: Boolean,
     )
+
+    private enum class DiscoveryState {
+        IDLE,
+        DISCOVERING,
+        READY,
+        ERROR,
+    }
 }
