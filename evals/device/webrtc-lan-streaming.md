@@ -36,6 +36,9 @@ directory and `%TEMP%\egoglass-webrtc-eval`.
   seconds after offer processing begins.
 - Requested and applied capture is 1920 x 1080 at 30 FPS and the negotiated
   codec is H.264.
+- The glasses log records `video_bitrate_bps=20000000`, and the hardware H.264
+  encoder initializes with a 20,000,000 bps target. This fixed LAN trial profile
+  must be reevaluated before use on a constrained or untrusted network.
 - The decoded stream remains between 27 and 33 FPS for the 60-second gate.
 - The device log records `supported_preview_sizes` and the requested
   `1920x1080@30` profile. The client verifies the applied cadence from decoded
@@ -56,3 +59,19 @@ After the stable run, interrupt Wi-Fi for five seconds. The client must enter a
 disconnected state and a new authenticated offer must restore streaming within
 ten seconds. Do not count this manual network mutation as part of the stable
 run.
+
+## 20 Mbps validation record
+
+Validated on 2026-07-16 with the Glass3 and Windows client on the same Wi-Fi:
+
+- the application logged `video_bitrate_bps=20000000`;
+- `c2.qti.avc.encoder` initialized H.264 at 1920 x 1080, 30 FPS, and
+  `bitrate=20000000`;
+- the client received 2,842 frames at 29.576 FPS with no malformed metadata,
+  unmatched-buffer drops, or stream error;
+- the glasses published 2,880 frames with zero latest-frame queue drops and no
+  Android or codec crash.
+
+The 20 Mbps value is the encoder and sender target. WebRTC congestion control
+may still lower instantaneous network throughput when the Wi-Fi path cannot
+sustain that rate.

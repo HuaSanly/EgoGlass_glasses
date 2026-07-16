@@ -41,9 +41,6 @@ private const val TAG = "EgoGlassWebRtc"
 private const val METADATA_CHANNEL = "frame-metadata-v1"
 private const val MAX_SIGNALING_RESPONSE_BYTES = 1_048_576
 private const val MAX_METADATA_BUFFERED_BYTES = 262_144L
-private const val MIN_VIDEO_BITRATE_BPS = 4_000_000
-private const val MAX_VIDEO_BITRATE_BPS = 10_000_000
-
 fun createAndroidWebRtcPublisher(context: Context): WebRtcPublisher =
     AndroidWebRtcPublisher(context.applicationContext)
 
@@ -204,16 +201,21 @@ private class AndroidWebRtcPublisher(
             ),
         )
         preferH264(factory, transceiver)
-        configureHighQualityVideoSender(transceiver, captureConfig.framesPerSecond)
+        configureHighQualityVideoSender(
+            transceiver,
+            captureConfig.framesPerSecond,
+            config.targetBitrateBps,
+        )
         check(
             peer.setBitrate(
-                MIN_VIDEO_BITRATE_BPS,
                 config.targetBitrateBps,
-                MAX_VIDEO_BITRATE_BPS,
+                config.targetBitrateBps,
+                config.targetBitrateBps,
             )
         ) {
             "Unable to set WebRTC bitrate"
         }
+        Log.i(TAG, "video_bitrate_bps=${config.targetBitrateBps}")
 
         val channelInit = DataChannel.Init().apply {
             ordered = true
@@ -415,13 +417,14 @@ private class AndroidWebRtcPublisher(
     private fun configureHighQualityVideoSender(
         transceiver: RtpTransceiver,
         framesPerSecond: Int,
+        targetBitrateBps: Int,
     ) {
         val parameters = transceiver.sender.parameters
         parameters.degradationPreference =
             RtpParameters.DegradationPreference.MAINTAIN_RESOLUTION
         parameters.encodings.forEach { encoding ->
-            encoding.minBitrateBps = MIN_VIDEO_BITRATE_BPS
-            encoding.maxBitrateBps = MAX_VIDEO_BITRATE_BPS
+            encoding.minBitrateBps = targetBitrateBps
+            encoding.maxBitrateBps = targetBitrateBps
             encoding.maxFramerate = framesPerSecond
             encoding.scaleResolutionDownBy = 1.0
         }

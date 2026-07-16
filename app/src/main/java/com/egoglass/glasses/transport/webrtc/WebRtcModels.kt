@@ -2,10 +2,12 @@ package com.egoglass.glasses.transport.webrtc
 
 import java.net.URI
 
+internal const val DEFAULT_VIDEO_BITRATE_BPS = 20_000_000
+
 data class WebRtcSessionConfig(
     val signalingUrl: String,
     val pairingToken: String,
-    val targetBitrateBps: Int = 8_000_000,
+    val targetBitrateBps: Int = DEFAULT_VIDEO_BITRATE_BPS,
 ) {
     init {
         val uri = URI(signalingUrl)
@@ -13,7 +15,7 @@ data class WebRtcSessionConfig(
         require(!uri.host.isNullOrBlank())
         require(uri.path == "/api/v1/webrtc/sessions")
         require(pairingToken.length in 16..256)
-        require(targetBitrateBps in 500_000..10_000_000)
+        require(targetBitrateBps in 500_000..DEFAULT_VIDEO_BITRATE_BPS)
     }
 
     val displayEndpoint: String

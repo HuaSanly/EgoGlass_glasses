@@ -21,7 +21,7 @@ features consume the project-owned `SdkConnection` contract.
 ## Direct WebRTC streaming
 
 The default profile requests pure-camera 1920 x 1080 NV21 at 30 FPS and publishes
-H.264 at an 8 Mbps target bitrate. Capture and WebRTC adaptation use the same
+H.264 at a fixed 20 Mbps LAN trial bitrate. Capture and WebRTC adaptation use the same
 `CaptureConfig`, and frame metadata uses the `frame-metadata-v1` DataChannel.
 Start the Windows workspace client first:
 
