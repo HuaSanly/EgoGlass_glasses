@@ -40,10 +40,10 @@ class DefaultStreamingSessionTest {
         assertTrue(source.started)
         assertTrue(imuSource.started)
         assertEquals(CaptureConfig(), publisher.captureConfig)
-        assertEquals(1920, publisher.captureConfig?.width)
-        assertEquals(1080, publisher.captureConfig?.height)
+        assertEquals(1280, publisher.captureConfig?.width)
+        assertEquals(720, publisher.captureConfig?.height)
         assertEquals(30, publisher.captureConfig?.framesPerSecond)
-        assertEquals("1080p30", publisher.captureConfig?.captureConfigId)
+        assertEquals("720p30", publisher.captureConfig?.captureConfigId)
         assertEquals(StreamingSessionState.CAPTURING, session.state)
 
         val capabilities = ImuCapabilities(10_000, emptyList(), emptyList())
@@ -159,7 +159,7 @@ class DefaultStreamingSessionTest {
         }
 
         fun emitOpened() {
-            listener?.onCameraOpened(1920, 1080, 30)
+            listener?.onCameraOpened(1280, 720, 30)
         }
 
         fun emitFrame() {

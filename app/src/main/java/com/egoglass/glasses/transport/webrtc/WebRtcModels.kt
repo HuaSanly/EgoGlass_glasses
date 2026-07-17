@@ -2,7 +2,7 @@ package com.egoglass.glasses.transport.webrtc
 
 import java.net.URI
 
-internal const val DEFAULT_VIDEO_BITRATE_BPS = 10_000_000
+internal const val DEFAULT_VIDEO_BITRATE_BPS = 8_000_000
 
 data class WebRtcSessionConfig(
     val signalingUrl: String,

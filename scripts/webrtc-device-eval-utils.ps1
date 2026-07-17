@@ -12,3 +12,12 @@ function Test-DirectWlanRoute {
 
     return $Route -match "^$([Regex]::Escape($ClientHost))\s+.*\bdev wlan0\b"
 }
+
+function Test-LogContains {
+    param(
+        [string[]]$Lines,
+        [string]$Pattern
+    )
+
+    return ($Lines -join [Environment]::NewLine) -match $Pattern
+}

@@ -92,7 +92,7 @@ if ($matchRatio -lt 0.95) {
 if ($lastStatus.average_fps -lt 27 -or $lastStatus.average_fps -gt 33) {
     throw "GLASS-EVAL-WEBRTC-001 failed: average FPS $($lastStatus.average_fps) is outside 27..33."
 }
-if ($lastStatus.width -ne 1920 -or $lastStatus.height -ne 1080) {
+if ($lastStatus.width -ne 1280 -or $lastStatus.height -ne 720) {
     throw "GLASS-EVAL-WEBRTC-001 failed: decoded size is $($lastStatus.width)x$($lastStatus.height)."
 }
 if ($lastStatus.video_codec -ne 'H264') {
@@ -111,12 +111,21 @@ $localScreenshot = Join-Path $outputDirectory 'streaming.png'
 & $Adb pull $remoteScreenshot $localScreenshot | Out-Host
 $firmware = (& $Adb shell getprop ro.build.fingerprint).Trim()
 $glassAddress = (& $Adb shell ip -4 addr show wlan0 | Select-String -Pattern 'inet ').ToString().Trim()
-$logs = & $Adb logcat -d -s 'EgoGlassWebRtc:I' 'EgoGlassCapture:I' 'AndroidRuntime:E' '*:S'
-if ($logs -match 'FATAL EXCEPTION') {
+$logs = & $Adb logcat -d -s `
+    'EgoGlassWebRtc:I' `
+    'EgoGlassCapture:I' `
+    'org.webrtc.Logging:I' `
+    'AndroidRuntime:E' `
+    '*:S'
+if (Test-LogContains -Lines $logs -Pattern 'FATAL EXCEPTION') {
     throw 'GLASS-EVAL-WEBRTC-001 failed: AndroidRuntime crash detected.'
 }
-if ($logs -notmatch 'video_bitrate_bps=10000000') {
-    throw 'GLASS-EVAL-WEBRTC-001 failed: 10 Mbps WebRTC bitrate was not applied.'
+if (-not (Test-LogContains -Lines $logs -Pattern 'video_bitrate_bps=8000000')) {
+    throw 'GLASS-EVAL-WEBRTC-001 failed: 8 Mbps WebRTC bitrate was not applied.'
+}
+if (-not (Test-LogContains -Lines $logs `
+        -Pattern '(?s)HardwareVideoEncoder: Format: .*width=1280.*bitrate=8000000.*height=720')) {
+    throw 'GLASS-EVAL-WEBRTC-001 failed: hardware encoder did not apply 720p at 8 Mbps.'
 }
 Set-Content -LiteralPath (Join-Path $outputDirectory 'device.log') -Value $logs
 $lastStatus | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $outputDirectory 'status.json')

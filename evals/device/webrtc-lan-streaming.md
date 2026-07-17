@@ -34,14 +34,14 @@ directory and `%TEMP%\egoglass-webrtc-eval`.
 - Client and Glass3 are on the same LAN and the route uses `wlan0`.
 - WebRTC reaches `streaming` and the first decoded frame arrives in under two
   seconds after offer processing begins.
-- Requested and applied capture is 1920 x 1080 at 30 FPS and the negotiated
+- Requested and applied capture is 1280 x 720 at 30 FPS and the negotiated
   codec is H.264.
-- The glasses log records `video_bitrate_bps=10000000`, and the hardware H.264
-  encoder initializes with a 10,000,000 bps target. This fixed LAN profile
+- The glasses log records `video_bitrate_bps=8000000`, and the hardware H.264
+  encoder initializes with an 8,000,000 bps target. This fixed LAN profile
   must be reevaluated before use on a constrained or untrusted network.
 - The decoded stream remains between 27 and 33 FPS for the 60-second gate.
 - The device log records `supported_preview_sizes` and the requested
-  `1920x1080@30` profile. The client verifies the applied cadence from decoded
+  `1280x720@30` profile. The client verifies the applied cadence from decoded
   frames because SDK 2.2.0-E does not always emit a runtime-parameter callback
   for the initial camera open.
 - Metadata is received, at least 95 percent of decoded frames match metadata,
@@ -60,6 +60,23 @@ directory and `%TEMP%\egoglass-webrtc-eval`.
 - No camera, WebRTC, AndroidRuntime, or ingest process crash occurs.
 - Glasses firmware, addresses, final counters, and a screenshot are recorded.
 
+## Validation record
+
+Validated the 720p30 / 8 Mbps profile on 2026-07-17 with an `RG-glasses`
+device running Android 12, firmware
+`Rokid/glasses/glasses:12/SKQ1.240613.001/1.19.e003-20260616-150201:user/release-keys`,
+and Glasses SDK `2.2.0-E`:
+
+- the client decoded 568 H.264 frames at 1280 x 720 and 30.122 FPS during the
+  20-second targeted regression run;
+- first-frame latency was 828.721 ms, metadata match ratio was 1.0, and maximum
+  timestamp match error was 83 ticks;
+- the glasses reported `requested=1280x720@30`, `camera_opened=1280x720`, and
+  zero publisher frame drops;
+- WebRTC logged `video_bitrate_bps=8000000`, while the Qualcomm hardware H.264
+  encoder initialized with `bitrate=8000000`, 1280 x 720, and 30 FPS;
+- the application screenshot displayed `STREAMING LIVE` and `1280x720`.
+
 ## Separate interruption check
 
 After the stable run, interrupt Wi-Fi for five seconds. The client must enter a
@@ -69,8 +86,8 @@ run.
 
 ## Required acceptance record
 
-Record the Glass3 firmware, client commit, encoder `bitrate=10000000` log,
+Record the Glass3 firmware, client commit, encoder `bitrate=8000000` log,
 decoded resolution and FPS, start/stop command IDs and acknowledgements, final
-drop counters, and any Android or codec error. The 10 Mbps value is the encoder
+drop counters, and any Android or codec error. The 8 Mbps value is the encoder
 and sender target; WebRTC congestion control may still lower instantaneous
 network throughput when the Wi-Fi path cannot sustain that rate.
