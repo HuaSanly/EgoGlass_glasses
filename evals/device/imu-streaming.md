@@ -50,6 +50,13 @@ capabilities, final bounded status, firmware, and observed rates under ignored
   counters plus the latest sample, not raw history.
 - `SensorEvent.timestamp` and callback-time `elapsedRealtimeNanos()` remain
   separate fields; their delta is recorded as evidence only.
+- Every video frame uses one `elapsedRealtimeNanos()` callback sample for both
+  frame metadata and the WebRTC/RTP timestamp, so camera and IMU callback
+  anchors share an explicit device clock without altering either raw source
+  timestamp.
+- Stop and restart the camera in one application run. The published
+  `camera_start_generation` must increase and all frames from one camera run
+  must keep the same value, so client clock fitting cannot cross the restart.
 - A force-stop and immediate second launch still registers and streams both
   sensors, proving the old listener cannot unregister the replacement run.
 - No AndroidRuntime crash or unbounded WebRTC DataChannel buffering occurs.

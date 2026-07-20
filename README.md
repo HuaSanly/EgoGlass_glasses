@@ -25,6 +25,13 @@ H.264 at a fixed 8 Mbps LAN bitrate. Capture and WebRTC adaptation use the same
 `CaptureConfig`. Frame metadata uses the `frame-metadata-v1` DataChannel, while
 the reliable ordered `stream-control-v1` DataChannel carries validated start and
 stop commands plus device status acknowledgements.
+Each frame preserves the raw Rokid millisecond timestamp and uses one Android
+`elapsedRealtimeNanos()` callback sample for both metadata and WebRTC/RTP time.
+This gives camera and IMU callbacks a common device-clock anchor without
+claiming that callback time is the camera exposure time.
+Frame metadata also includes an application-local `camera_start_generation`
+that increments on every camera start, allowing the client to split clock
+mappings even when a stop/start interval is shorter than its gap threshold.
 Start the Windows workspace client first:
 
 ```powershell

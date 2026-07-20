@@ -257,10 +257,10 @@ private class AndroidWebRtcPublisher(
         }
         Log.i(TAG, "video_bitrate_bps=${config.targetBitrateBps}")
 
-        val metadataChannelInit = DataChannel.Init().apply {
-            ordered = true
-        }
-        metadataChannel = peer.createDataChannel(METADATA_CHANNEL, metadataChannelInit)
+        metadataChannel = peer.createDataChannel(
+            METADATA_CHANNEL,
+            createFrameMetadataChannelInit(),
+        )
         val controlChannelInit = DataChannel.Init().apply {
             ordered = true
             maxRetransmitTimeMs = -1
@@ -440,21 +440,7 @@ private class AndroidWebRtcPublisher(
         val channel = metadataChannel ?: return
         if (channel.state() != DataChannel.State.OPEN) return
         if (channel.bufferedAmount() > MAX_METADATA_BUFFERED_BYTES) return
-        val payload = JSONObject()
-            .put("schema_version", "1.0")
-            .put("message_type", "video_frame")
-            .put("stream_id", "camera")
-            .put("frame_id", frame.frameId)
-            .put("captured_at_rokid_sdk_ms", frame.capturedAtRokidSdkMs)
-            .put("received_at_elapsed_realtime_ns", frame.receivedAtElapsedRealtimeNs)
-            .put("video_at_monotonic_ns", frame.videoAtMonotonicNs)
-            .put("rtp_timestamp_90khz", monotonicNsToRtpTimestamp90Khz(frame.videoAtMonotonicNs))
-            .put("width", frame.width)
-            .put("height", frame.height)
-            .put("rotation_degrees", frame.rotationDegrees)
-            .put("capture_config_id", frame.captureConfigId)
-            .toString()
-            .toByteArray(StandardCharsets.UTF_8)
+        val payload = encodeVideoFrameMetadata(frame).toByteArray(StandardCharsets.UTF_8)
         if (channel.send(DataChannel.Buffer(ByteBuffer.wrap(payload), false))) {
             metadataSent.incrementAndGet()
         }
@@ -671,4 +657,10 @@ private class AndroidWebRtcPublisher(
 
         override fun onSetFailure(error: String) = Unit
     }
+}
+
+internal fun createFrameMetadataChannelInit() = DataChannel.Init().apply {
+    ordered = false
+    maxRetransmitTimeMs = -1
+    maxRetransmits = -1
 }

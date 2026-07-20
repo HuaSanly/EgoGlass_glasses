@@ -166,12 +166,13 @@ class DefaultStreamingSessionTest {
             listener?.onFrame(
                 CapturedVideoFrame(
                     frameId = 1,
+                    cameraStartGeneration = 1,
                     nv21 = ByteArray(6),
                     width = 2,
                     height = 2,
                     capturedAtRokidSdkMs = 1,
                     receivedAtElapsedRealtimeNs = 2,
-                    videoAtMonotonicNs = 3,
+                    videoAtMonotonicNs = 2,
                     rotationDegrees = 0,
                     captureConfigId = "test",
                 )

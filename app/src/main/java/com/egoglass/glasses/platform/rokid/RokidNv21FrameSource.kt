@@ -3,6 +3,7 @@ package com.egoglass.glasses.platform.rokid
 import android.os.SystemClock
 import android.util.Log
 import com.egoglass.glasses.capture.CaptureConfig
+import com.egoglass.glasses.capture.CameraStartGenerationCounter
 import com.egoglass.glasses.capture.CapturedVideoFrame
 import com.egoglass.glasses.capture.VideoFrameSource
 import com.egoglass.glasses.capture.VideoFrameSourceListener
@@ -17,6 +18,7 @@ fun createRokidNv21FrameSource(): VideoFrameSource = RokidNv21FrameSource()
 
 private class RokidNv21FrameSource : VideoFrameSource {
     private val nextFrameId = AtomicLong(0)
+    private val cameraStartGenerations = CameraStartGenerationCounter()
 
     @Volatile
     private var helper: CameraShareHelper? = null
@@ -30,6 +32,7 @@ private class RokidNv21FrameSource : VideoFrameSource {
         }
 
         val activeHelper = CameraShareHelper()
+        val cameraStartGeneration = cameraStartGenerations.next()
         helper = activeHelper
         runCatching { activeHelper.getSupportedPreviewSizes() }
             .onSuccess { sizes ->
@@ -70,15 +73,17 @@ private class RokidNv21FrameSource : VideoFrameSource {
                         listener.onError("Invalid NV21 frame size")
                         return
                     }
+                    val callbackAtElapsedRealtimeNs = SystemClock.elapsedRealtimeNanos()
                     listener.onFrame(
                         CapturedVideoFrame(
                             frameId = nextFrameId.getAndIncrement(),
+                            cameraStartGeneration = cameraStartGeneration,
                             nv21 = nv21.copyOf(expectedBytes),
                             width = width,
                             height = height,
                             capturedAtRokidSdkMs = timestamp,
-                            receivedAtElapsedRealtimeNs = SystemClock.elapsedRealtimeNanos(),
-                            videoAtMonotonicNs = System.nanoTime(),
+                            receivedAtElapsedRealtimeNs = callbackAtElapsedRealtimeNs,
+                            videoAtMonotonicNs = callbackAtElapsedRealtimeNs,
                             rotationDegrees = config.rotationDegrees,
                             captureConfigId = config.captureConfigId,
                         )
