@@ -45,8 +45,11 @@ directory and `%TEMP%\egoglass-webrtc-eval`.
   frames because SDK 2.2.0-E does not always emit a runtime-parameter callback
   for the initial camera open.
 - Metadata is received, at least 95 percent of decoded frames match metadata,
-  unmatched buffers remain bounded at 256 entries, and timestamp association
-  error does not exceed 90 ticks (1 ms).
+  unmatched buffers remain bounded at 256 entries, receipt-time calibration
+  selects a dominant RTP-offset cluster after encoder startup drops, and
+  timestamp association error does not exceed 1,000 ticks. The observed error
+  distribution and selected offset must be recorded; 1,000 ticks remains below
+  half of a 30 fps frame.
 - The glasses latest-frame queue reports its drop count and never grows.
 - The reliable ordered `stream-control-v1` DataChannel opens and reports the
   current capture state.

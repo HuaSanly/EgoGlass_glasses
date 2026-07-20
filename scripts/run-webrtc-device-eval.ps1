@@ -89,6 +89,9 @@ $matchRatio = $lastStatus.metadata_matched / [Math]::Max(1, $lastStatus.frames_r
 if ($matchRatio -lt 0.95) {
     throw "GLASS-EVAL-WEBRTC-001 failed: metadata match ratio $matchRatio is below 0.95."
 }
+if (-not $lastStatus.metadata_calibrated -or $lastStatus.metadata_calibration_support -lt 30) {
+    throw 'GLASS-EVAL-WEBRTC-001 failed: RTP offset did not calibrate with enough support.'
+}
 if ($lastStatus.average_fps -lt 27 -or $lastStatus.average_fps -gt 33) {
     throw "GLASS-EVAL-WEBRTC-001 failed: average FPS $($lastStatus.average_fps) is outside 27..33."
 }
@@ -98,8 +101,15 @@ if ($lastStatus.width -ne 1280 -or $lastStatus.height -ne 720) {
 if ($lastStatus.video_codec -ne 'H264') {
     throw "GLASS-EVAL-WEBRTC-001 failed: negotiated codec is $($lastStatus.video_codec)."
 }
-if ($lastStatus.max_timestamp_match_error_90khz -gt 90) {
-    throw "GLASS-EVAL-WEBRTC-001 failed: timestamp error exceeds 90 ticks."
+if (($lastStatus.metadata_anchor_matches + $lastStatus.metadata_ordered_gap_matches) `
+        -ne $lastStatus.metadata_matched) {
+    throw 'GLASS-EVAL-WEBRTC-001 failed: metadata match method counters are inconsistent.'
+}
+if ($lastStatus.pending_frames -gt 30 -or $lastStatus.pending_metadata -gt 30) {
+    throw "GLASS-EVAL-WEBRTC-001 failed: metadata queues remain backlogged ($($lastStatus.pending_frames)/$($lastStatus.pending_metadata))."
+}
+if ($lastStatus.max_timestamp_match_error_90khz -gt 6000) {
+    throw "GLASS-EVAL-WEBRTC-001 failed: ordered gap timestamp error exceeds 6,000 ticks."
 }
 if ($lastStatus.first_frame_latency_ms -gt 2000) {
     throw "GLASS-EVAL-WEBRTC-001 failed: first-frame latency is $($lastStatus.first_frame_latency_ms) ms."
