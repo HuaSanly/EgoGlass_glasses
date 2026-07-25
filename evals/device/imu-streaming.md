@@ -17,8 +17,8 @@ Start the ingest gateway with a fixed runtime token, build the debug APK, then
 run two 10-second device rounds:
 
 ```powershell
-cd ..\EgoGlass_client\services\ingest-gateway
-.\.venv\Scripts\python.exe -m egoglass_ingest_gateway.app `
+cd ..\EgoGlass_client
+.\.venv\Scripts\python.exe -m ingest_gateway.app `
   --host 0.0.0.0 `
   --port 8770 `
   --pairing-token <runtime-token>
