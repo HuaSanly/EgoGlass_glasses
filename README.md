@@ -21,8 +21,10 @@ features consume the project-owned `SdkConnection` contract.
 ## Direct WebRTC streaming
 
 The default profile requests pure-camera 1280 x 720 NV21 at 30 FPS and publishes
-H.264 at a fixed 8 Mbps LAN bitrate. Capture and WebRTC adaptation use the same
-`CaptureConfig`. Frame metadata uses the `frame-metadata-v1` DataChannel, while
+H.264 with an adaptive 0.8-6 Mbps LAN bitrate policy. WebRTC uses its standard
+balanced degradation policy instead of pinning one bitrate or one media axis.
+Capture and WebRTC adaptation use the same `CaptureConfig`. Frame metadata uses
+the `frame-metadata-v1` DataChannel, while
 the reliable ordered `stream-control-v1` DataChannel carries validated start and
 stop commands plus device status acknowledgements.
 Each frame preserves the raw Rokid millisecond timestamp and uses one Android

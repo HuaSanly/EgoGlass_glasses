@@ -25,6 +25,16 @@ In another terminal:
   -DurationSeconds 60
 ```
 
+When the native client generated its token internally, use its LAN discovery
+service instead:
+
+```powershell
+.\scripts\run-webrtc-device-eval.ps1 `
+  -ClientHost 192.168.1.20 `
+  -UseDiscovery `
+  -DurationSeconds 60
+```
+
 The script refuses to run unless Android routes the Windows client address over
 `wlan0`. Generated logs and screenshots stay under the ignored `app/build/`
 directory and `%TEMP%\egoglass-webrtc-eval`.
@@ -36,10 +46,13 @@ directory and `%TEMP%\egoglass-webrtc-eval`.
   seconds after offer processing begins.
 - Requested and applied capture is 1280 x 720 at 30 FPS and the negotiated
   codec is H.264.
-- The glasses log records `video_bitrate_bps=8000000`, and the hardware H.264
-  encoder initializes with an 8,000,000 bps target. This fixed LAN profile
-  must be reevaluated before use on a constrained or untrusted network.
+- The glasses log records `video_bitrate_bps min=800000 start=3000000
+  max=6000000 degradation=balanced`. The hardware H.264 encoder initializes
+  inside that range; libwebrtc may choose a value below the requested start
+  bitrate while it establishes available bandwidth.
 - The decoded stream remains between 27 and 33 FPS for the 60-second gate.
+- Client RTP loss remains below one percent, receiver jitter remains below
+  50 ms, and no decoded frame marked corrupt reaches the RGB display path.
 - The device log records `supported_preview_sizes` and the requested
   `1280x720@30` profile. The client verifies the applied cadence from decoded
   frames because SDK 2.2.0-E does not always emit a runtime-parameter callback
@@ -65,7 +78,23 @@ directory and `%TEMP%\egoglass-webrtc-eval`.
 
 ## Validation record
 
-Validated the 720p30 / 8 Mbps profile on 2026-07-17 with an `RG-glasses`
+Validated the adaptive 720p30 profile on 2026-07-30 with an `RG-glasses`
+device running Android 12, firmware
+`Rokid/glasses/glasses:12/SKQ1.240613.001/1.19.e003-20260616-150201:user/release-keys`:
+
+- the client decoded 1,822 H.264 frames at 29.651 FPS during the 60-second gate;
+- RTP loss was 0.0 percent, final receiver jitter was 14.422 ms, and no decoded
+  frame was marked corrupt;
+- first-frame latency was 902.491 ms and decoded output finished at 1280 x 720;
+- metadata match ratio was 0.9676 and maximum timestamp error was 2,720 ticks;
+- the sender logged the 0.8/3/6 Mbps balanced policy and zero video publisher
+  queue drops;
+- `GLASS-EVAL-WEBRTC-001` passed and saved its screenshot and status under the
+  ignored `app/build/evals/webrtc/` directory.
+
+### Previous fixed-bitrate baseline
+
+The superseded fixed 720p30 / 8 Mbps profile was validated on 2026-07-17 with an `RG-glasses`
 device running Android 12, firmware
 `Rokid/glasses/glasses:12/SKQ1.240613.001/1.19.e003-20260616-150201:user/release-keys`,
 and Glasses SDK `2.2.0-E`:
@@ -89,8 +118,7 @@ run.
 
 ## Required acceptance record
 
-Record the Glass3 firmware, client commit, encoder `bitrate=8000000` log,
+Record the Glass3 firmware, client commit, adaptive bitrate policy log,
 decoded resolution and FPS, start/stop command IDs and acknowledgements, final
-drop counters, and any Android or codec error. The 8 Mbps value is the encoder
-and sender target; WebRTC congestion control may still lower instantaneous
-network throughput when the Wi-Fi path cannot sustain that rate.
+drop counters, RTP loss/jitter, corrupt-frame drops, and any Android or codec
+error.

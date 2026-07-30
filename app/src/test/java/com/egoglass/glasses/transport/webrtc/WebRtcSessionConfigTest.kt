@@ -13,8 +13,28 @@ class WebRtcSessionConfigTest {
         )
 
         assertEquals("192.168.1.20:8770", config.displayEndpoint)
-        assertEquals(8_000_000, config.targetBitrateBps)
+        assertEquals(6_000_000, config.targetBitrateBps)
         assertEquals(-1, config.toString().indexOf("runtime-pairing-token-123456"))
+    }
+
+    @Test
+    fun createsAdaptiveBitratePolicyWithinConfiguredMaximum() {
+        assertEquals(
+            VideoBitratePolicy(
+                minimumBps = 800_000,
+                startBps = 3_000_000,
+                maximumBps = 6_000_000,
+            ),
+            videoBitratePolicy(6_000_000),
+        )
+        assertEquals(
+            VideoBitratePolicy(
+                minimumBps = 500_000,
+                startBps = 500_000,
+                maximumBps = 500_000,
+            ),
+            videoBitratePolicy(500_000),
+        )
     }
 
     @Test

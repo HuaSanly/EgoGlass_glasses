@@ -2,8 +2,8 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$ClientHost,
-    [Parameter(Mandatory = $true)]
     [string]$PairingToken,
+    [switch]$UseDiscovery,
     [int]$ClientPort = 8770,
     [int]$DurationSeconds = 60,
     [string]$Adb = 'adb',
@@ -12,8 +12,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'webrtc-device-eval-utils.ps1')
-if ($PairingToken.Length -lt 16) {
-    throw 'PairingToken must contain at least 16 characters.'
+if (-not (Test-ValidEvalSignalingMode `
+        -UseDiscovery $UseDiscovery.IsPresent `
+        -PairingToken $PairingToken)) {
+    throw 'Use either -UseDiscovery or one pairing token containing at least 16 characters.'
 }
 if ($DurationSeconds -lt 10) {
     throw 'DurationSeconds must be at least 10.'
@@ -52,9 +54,13 @@ if ($LASTEXITCODE -ne 0) { throw 'APK installation failed.' }
 & $Adb logcat -c
 & $Adb shell am force-stop com.egoglass.glasses
 $signalingUrl = "$baseUrl/api/v1/webrtc/sessions"
-& $Adb shell am start -W -n com.egoglass.glasses/.MainActivity `
-    --es signaling_url $signalingUrl `
-    --es pairing_token $PairingToken | Out-Host
+if ($UseDiscovery) {
+    & $Adb shell am start -W -n com.egoglass.glasses/.MainActivity | Out-Host
+} else {
+    & $Adb shell am start -W -n com.egoglass.glasses/.MainActivity `
+        --es signaling_url $signalingUrl `
+        --es pairing_token $PairingToken | Out-Host
+}
 if ($LASTEXITCODE -ne 0) { throw 'Application launch failed.' }
 
 $startedAt = Get-Date
@@ -95,6 +101,12 @@ if (-not $lastStatus.metadata_calibrated -or $lastStatus.metadata_calibration_su
 if ($lastStatus.average_fps -lt 27 -or $lastStatus.average_fps -gt 33) {
     throw "GLASS-EVAL-WEBRTC-001 failed: average FPS $($lastStatus.average_fps) is outside 27..33."
 }
+if ($lastStatus.rtp_packet_loss_percent -ge 1) {
+    throw "GLASS-EVAL-WEBRTC-001 failed: RTP loss $($lastStatus.rtp_packet_loss_percent)% is not below 1%."
+}
+if ($lastStatus.rtp_jitter_ms -ge 50) {
+    throw "GLASS-EVAL-WEBRTC-001 failed: RTP jitter $($lastStatus.rtp_jitter_ms) ms is not below 50 ms."
+}
 if ($lastStatus.width -ne 1280 -or $lastStatus.height -ne 720) {
     throw "GLASS-EVAL-WEBRTC-001 failed: decoded size is $($lastStatus.width)x$($lastStatus.height)."
 }
@@ -130,12 +142,13 @@ $logs = & $Adb logcat -d -s `
 if (Test-LogContains -Lines $logs -Pattern 'FATAL EXCEPTION') {
     throw 'GLASS-EVAL-WEBRTC-001 failed: AndroidRuntime crash detected.'
 }
-if (-not (Test-LogContains -Lines $logs -Pattern 'video_bitrate_bps=8000000')) {
-    throw 'GLASS-EVAL-WEBRTC-001 failed: 8 Mbps WebRTC bitrate was not applied.'
+if (-not (Test-LogContains -Lines $logs `
+        -Pattern 'video_bitrate_bps min=800000 start=3000000 max=6000000 degradation=balanced')) {
+    throw 'GLASS-EVAL-WEBRTC-001 failed: adaptive WebRTC bitrate policy was not applied.'
 }
 if (-not (Test-LogContains -Lines $logs `
-        -Pattern '(?s)HardwareVideoEncoder: Format: .*width=1280.*bitrate=8000000.*height=720')) {
-    throw 'GLASS-EVAL-WEBRTC-001 failed: hardware encoder did not apply 720p at 8 Mbps.'
+        -Pattern '(?s)HardwareVideoEncoder: Format: .*width=1280.*bitrate=[0-9]+.*height=720')) {
+    throw 'GLASS-EVAL-WEBRTC-001 failed: hardware encoder did not apply the 720p profile.'
 }
 Set-Content -LiteralPath (Join-Path $outputDirectory 'device.log') -Value $logs
 $lastStatus | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $outputDirectory 'status.json')
@@ -146,6 +159,8 @@ Write-Output "Glass address: $glassAddress"
 Write-Output "Firmware: $firmware"
 Write-Output "Frames: $($lastStatus.frames_received)"
 Write-Output "Average FPS: $($lastStatus.average_fps)"
+Write-Output "RTP loss: $($lastStatus.rtp_packet_loss_percent)%"
+Write-Output "RTP jitter: $($lastStatus.rtp_jitter_ms) ms"
 Write-Output "Codec: $($lastStatus.video_codec)"
 Write-Output "Decoded size: $($lastStatus.width)x$($lastStatus.height)"
 Write-Output "Metadata match ratio: $([Math]::Round($matchRatio, 4))"

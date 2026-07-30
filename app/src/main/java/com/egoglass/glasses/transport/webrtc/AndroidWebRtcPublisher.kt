@@ -241,21 +241,27 @@ private class AndroidWebRtcPublisher(
             ),
         )
         preferH264(factory, transceiver)
-        configureHighQualityVideoSender(
+        val bitratePolicy = videoBitratePolicy(config.targetBitrateBps)
+        configureVideoSender(
             transceiver,
             captureConfig.framesPerSecond,
-            config.targetBitrateBps,
+            bitratePolicy,
         )
         check(
             peer.setBitrate(
-                config.targetBitrateBps,
-                config.targetBitrateBps,
-                config.targetBitrateBps,
+                bitratePolicy.minimumBps,
+                bitratePolicy.startBps,
+                bitratePolicy.maximumBps,
             )
         ) {
             "Unable to set WebRTC bitrate"
         }
-        Log.i(TAG, "video_bitrate_bps=${config.targetBitrateBps}")
+        Log.i(
+            TAG,
+            "video_bitrate_bps min=${bitratePolicy.minimumBps} " +
+                "start=${bitratePolicy.startBps} max=${bitratePolicy.maximumBps} " +
+                "degradation=balanced",
+        )
 
         metadataChannel = peer.createDataChannel(
             METADATA_CHANNEL,
@@ -522,22 +528,22 @@ private class AndroidWebRtcPublisher(
         transceiver.setCodecPreferences(h264Codecs)
     }
 
-    private fun configureHighQualityVideoSender(
+    private fun configureVideoSender(
         transceiver: RtpTransceiver,
         framesPerSecond: Int,
-        targetBitrateBps: Int,
+        bitratePolicy: VideoBitratePolicy,
     ) {
         val parameters = transceiver.sender.parameters
         parameters.degradationPreference =
-            RtpParameters.DegradationPreference.MAINTAIN_RESOLUTION
+            RtpParameters.DegradationPreference.BALANCED
         parameters.encodings.forEach { encoding ->
-            encoding.minBitrateBps = targetBitrateBps
-            encoding.maxBitrateBps = targetBitrateBps
+            encoding.minBitrateBps = bitratePolicy.minimumBps
+            encoding.maxBitrateBps = bitratePolicy.maximumBps
             encoding.maxFramerate = framesPerSecond
             encoding.scaleResolutionDownBy = 1.0
         }
         check(transceiver.sender.setParameters(parameters)) {
-            "Unable to configure high-quality WebRTC video"
+            "Unable to configure WebRTC video sender"
         }
     }
 

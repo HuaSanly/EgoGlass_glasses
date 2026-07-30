@@ -21,3 +21,15 @@ function Test-LogContains {
 
     return ($Lines -join [Environment]::NewLine) -match $Pattern
 }
+
+function Test-ValidEvalSignalingMode {
+    param(
+        [bool]$UseDiscovery,
+        [string]$PairingToken
+    )
+
+    if ($UseDiscovery) {
+        return [string]::IsNullOrEmpty($PairingToken)
+    }
+    return -not [string]::IsNullOrEmpty($PairingToken) -and $PairingToken.Length -ge 16
+}
