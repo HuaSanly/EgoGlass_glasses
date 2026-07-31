@@ -2,9 +2,9 @@ package com.egoglass.glasses.transport.webrtc
 
 import java.net.URI
 
-internal const val MIN_VIDEO_BITRATE_BPS = 800_000
-internal const val START_VIDEO_BITRATE_BPS = 3_000_000
-internal const val DEFAULT_VIDEO_BITRATE_BPS = 6_000_000
+internal const val MIN_VIDEO_BITRATE_BPS = 3_000_000
+internal const val START_VIDEO_BITRATE_BPS = 6_000_000
+internal const val DEFAULT_VIDEO_BITRATE_BPS = 8_000_000
 internal const val MAX_VIDEO_BITRATE_BPS = 8_000_000
 
 internal data class VideoBitratePolicy(

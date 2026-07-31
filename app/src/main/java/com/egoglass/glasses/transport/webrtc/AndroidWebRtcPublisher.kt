@@ -53,7 +53,7 @@ private class AndroidWebRtcPublisher(
     private val generation = AtomicLong(0)
     private val offerPosted = AtomicBoolean(false)
     private val localDescriptionReady = AtomicBoolean(false)
-    private val frameQueue = LatestFrameQueue<CapturedVideoFrame>()
+    private val frameQueue = LatestFrameQueue<CapturedVideoFrame> { frame -> frame.release() }
     private val framesOffered = AtomicLong(0)
     private val framesPublished = AtomicLong(0)
     private val framesDropped = AtomicLong(0)
@@ -147,7 +147,10 @@ private class AndroidWebRtcPublisher(
     }
 
     override fun offerFrame(frame: CapturedVideoFrame) {
-        if (state != WebRtcPublisherState.STREAMING) return
+        if (state != WebRtcPublisherState.STREAMING) {
+            frame.release()
+            return
+        }
         framesOffered.incrementAndGet()
         if (frameQueue.offerLatest(frame)) {
             framesDropped.incrementAndGet()
@@ -260,7 +263,7 @@ private class AndroidWebRtcPublisher(
             TAG,
             "video_bitrate_bps min=${bitratePolicy.minimumBps} " +
                 "start=${bitratePolicy.startBps} max=${bitratePolicy.maximumBps} " +
-                "degradation=balanced",
+                "degradation=maintain_resolution",
         )
 
         metadataChannel = peer.createDataChannel(
@@ -431,12 +434,26 @@ private class AndroidWebRtcPublisher(
     }
 
     private fun publishFrame(sessionGeneration: Long, frame: CapturedVideoFrame) {
-        if (sessionGeneration != generation.get()) return
-        val source = videoSource ?: return
-        val buffer = NV21Buffer(frame.nv21, frame.width, frame.height, null)
+        if (sessionGeneration != generation.get()) {
+            frame.release()
+            return
+        }
+        val source = videoSource ?: run {
+            frame.release()
+            return
+        }
+        val buffer = NV21Buffer(
+            frame.nv21,
+            frame.width,
+            frame.height,
+            Runnable { frame.release() },
+        )
         val videoFrame = VideoFrame(buffer, frame.rotationDegrees, frame.videoAtMonotonicNs)
-        source.capturerObserver.onFrameCaptured(videoFrame)
-        videoFrame.release()
+        try {
+            source.capturerObserver.onFrameCaptured(videoFrame)
+        } finally {
+            videoFrame.release()
+        }
         val published = framesPublished.incrementAndGet()
         sendMetadata(frame)
         if (published % 20L == 0L) notifyStats()
@@ -535,7 +552,7 @@ private class AndroidWebRtcPublisher(
     ) {
         val parameters = transceiver.sender.parameters
         parameters.degradationPreference =
-            RtpParameters.DegradationPreference.BALANCED
+            RtpParameters.DegradationPreference.MAINTAIN_RESOLUTION
         parameters.encodings.forEach { encoding ->
             encoding.minBitrateBps = bitratePolicy.minimumBps
             encoding.maxBitrateBps = bitratePolicy.maximumBps

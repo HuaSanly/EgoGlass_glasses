@@ -1,5 +1,7 @@
 package com.egoglass.glasses.capture
 
+import java.util.concurrent.atomic.AtomicBoolean
+
 data class CapturedVideoFrame(
     val frameId: Long,
     val cameraStartGeneration: Long,
@@ -11,7 +13,10 @@ data class CapturedVideoFrame(
     val videoAtMonotonicNs: Long,
     val rotationDegrees: Int,
     val captureConfigId: String,
+    private val releaseCallback: (() -> Unit)? = null,
 ) {
+    private val released = AtomicBoolean(false)
+
     init {
         require(frameId >= 0)
         require(cameraStartGeneration >= 1)
@@ -24,5 +29,9 @@ data class CapturedVideoFrame(
             "WebRTC and callback timestamps must use the same elapsed-realtime sample"
         }
         require(rotationDegrees in setOf(0, 90, 180, 270))
+    }
+
+    fun release() {
+        if (released.compareAndSet(false, true)) releaseCallback?.invoke()
     }
 }

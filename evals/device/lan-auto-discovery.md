@@ -4,7 +4,7 @@
 
 With the Windows client already running, the operator launches EgoGlass from
 the Glass3 application list without ADB extras. The glasses discover the client
-on the same Wi-Fi network and begin the direct 720p30 WebRTC stream.
+on the same Wi-Fi network and begin the direct 640 x 480 at 30 FPS WebRTC stream.
 
 ## Procedure
 
@@ -19,7 +19,7 @@ on the same Wi-Fi network and begin the direct 720p30 WebRTC stream.
 3. Open EgoGlass from the Glass3 application list.
 4. Confirm the glasses progress through `FINDING CLIENT`, `NEGOTIATING`, and
    `STREAMING LIVE`.
-5. Confirm the Windows console displays 1280 x 720 video near 30 FPS.
+5. Confirm the Windows console displays 640 x 480 video near 30 FPS.
 6. Close and reopen EgoGlass once; discovery and streaming must repeat without
    restarting the Windows client.
 
@@ -31,10 +31,14 @@ on the same Wi-Fi network and begin the direct 720p30 WebRTC stream.
   signaling URL host.
 - The pairing token does not appear in the request, repository, or glasses
   persistent storage.
-- The client receives 1280 x 720 H.264 near 30 FPS.
+- The client receives 640 x 480 H.264 near 30 FPS.
 - Closing the Windows application stops both managed client processes.
 
-## Current validation record
+## Validation record
+
+The 640 x 480 horizontal 4:3 profile requires a fresh device validation.
+
+### Previous 720p30 baseline
 
 Validated the 720p30 profile on 2026-07-17 with the same `RG-glasses` hardware
 and Glasses SDK `2.2.0-E`:

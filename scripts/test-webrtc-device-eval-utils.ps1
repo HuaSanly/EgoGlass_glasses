@@ -43,11 +43,11 @@ if (Test-LogContains -Lines @('video_bitrate_bps min=800000 start=8000000 max=80
     throw 'A mismatched bitrate log was accepted.'
 }
 $hardwareEncoderLog = @(
-    'HardwareVideoEncoder: Format: {color-format=19, width=1280, bitrate-mode=2,',
-    'bitrate=2000000, frame-rate=30.0, height=720}'
+    'HardwareVideoEncoder: Format: {color-format=19, width=640, bitrate-mode=2,',
+    'bitrate=2000000, frame-rate=30.0, height=480}'
 )
 if (-not (Test-LogContains -Lines $hardwareEncoderLog `
-        -Pattern '(?s)HardwareVideoEncoder: Format: .*width=1280.*bitrate=[0-9]+.*height=720')) {
+        -Pattern '(?s)HardwareVideoEncoder: Format: .*width=640.*bitrate=[0-9]+.*height=480')) {
     throw 'A valid multiline hardware encoder configuration was not detected.'
 }
 

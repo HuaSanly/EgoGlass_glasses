@@ -20,9 +20,13 @@ features consume the project-owned `SdkConnection` contract.
 
 ## Direct WebRTC streaming
 
-The default profile requests pure-camera 1280 x 720 NV21 at 30 FPS and publishes
-H.264 with an adaptive 0.8-6 Mbps LAN bitrate policy. WebRTC uses its standard
-balanced degradation policy instead of pinning one bitrate or one media axis.
+The default profile requests pure-camera 640 x 480 NV21 at 30 FPS to expose the
+camera's horizontal 4:3 preview mode and publishes
+H.264 with an adaptive 3-8 Mbps LAN bitrate policy that starts at 6 Mbps.
+WebRTC retains congestion control but prefers maintaining 640 x 480 instead of
+silently reducing spatial resolution. The SDK callback copies into a small pool
+of reusable NV21 buffers; overwritten, stopped, and encoded frames return their
+buffers so long streams do not allocate another frame-sized array for every frame.
 Capture and WebRTC adaptation use the same `CaptureConfig`. Frame metadata uses
 the `frame-metadata-v1` DataChannel, while
 the reliable ordered `stream-control-v1` DataChannel carries validated start and

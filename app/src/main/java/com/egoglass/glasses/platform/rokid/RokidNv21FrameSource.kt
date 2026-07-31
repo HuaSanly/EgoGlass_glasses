@@ -5,6 +5,7 @@ import android.util.Log
 import com.egoglass.glasses.capture.CaptureConfig
 import com.egoglass.glasses.capture.CameraStartGenerationCounter
 import com.egoglass.glasses.capture.CapturedVideoFrame
+import com.egoglass.glasses.capture.ReusableByteArrayPool
 import com.egoglass.glasses.capture.VideoFrameSource
 import com.egoglass.glasses.capture.VideoFrameSourceListener
 import com.rokid.security.glass3.open.sdk.GlassSdk
@@ -19,6 +20,7 @@ fun createRokidNv21FrameSource(): VideoFrameSource = RokidNv21FrameSource()
 private class RokidNv21FrameSource : VideoFrameSource {
     private val nextFrameId = AtomicLong(0)
     private val cameraStartGenerations = CameraStartGenerationCounter()
+    private val frameBuffers = ReusableByteArrayPool(capacity = 4)
 
     @Volatile
     private var helper: CameraShareHelper? = null
@@ -74,11 +76,12 @@ private class RokidNv21FrameSource : VideoFrameSource {
                         return
                     }
                     val callbackAtElapsedRealtimeNs = SystemClock.elapsedRealtimeNanos()
-                    listener.onFrame(
-                        CapturedVideoFrame(
+                    val ownedNv21 = frameBuffers.acquire(expectedBytes)
+                    System.arraycopy(nv21, 0, ownedNv21, 0, expectedBytes)
+                    val frame = CapturedVideoFrame(
                             frameId = nextFrameId.getAndIncrement(),
                             cameraStartGeneration = cameraStartGeneration,
-                            nv21 = nv21.copyOf(expectedBytes),
+                            nv21 = ownedNv21,
                             width = width,
                             height = height,
                             capturedAtRokidSdkMs = timestamp,
@@ -86,8 +89,14 @@ private class RokidNv21FrameSource : VideoFrameSource {
                             videoAtMonotonicNs = callbackAtElapsedRealtimeNs,
                             rotationDegrees = config.rotationDegrees,
                             captureConfigId = config.captureConfigId,
+                            releaseCallback = { frameBuffers.release(ownedNv21) },
                         )
-                    )
+                    try {
+                        listener.onFrame(frame)
+                    } catch (error: Throwable) {
+                        frame.release()
+                        throw error
+                    }
                 }
 
                 override fun onCameraClosed() {

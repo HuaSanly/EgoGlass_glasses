@@ -44,17 +44,17 @@ directory and `%TEMP%\egoglass-webrtc-eval`.
 - Client and Glass3 are on the same LAN and the route uses `wlan0`.
 - WebRTC reaches `streaming` and the first decoded frame arrives in under two
   seconds after offer processing begins.
-- Requested and applied capture is 1280 x 720 at 30 FPS and the negotiated
+- Requested and applied capture is 640 x 480 at 30 FPS and the negotiated
   codec is H.264.
-- The glasses log records `video_bitrate_bps min=800000 start=3000000
-  max=6000000 degradation=balanced`. The hardware H.264 encoder initializes
-  inside that range; libwebrtc may choose a value below the requested start
-  bitrate while it establishes available bandwidth.
+- The glasses log records `video_bitrate_bps min=3000000 start=6000000
+  max=8000000 degradation=maintain_resolution`. The hardware H.264 encoder
+  initializes inside that range and WebRTC keeps congestion control without
+  reducing the 640 x 480 source raster.
 - The decoded stream remains between 27 and 33 FPS for the 60-second gate.
 - Client RTP loss remains below one percent, receiver jitter remains below
   50 ms, and no decoded frame marked corrupt reaches the RGB display path.
 - The device log records `supported_preview_sizes` and the requested
-  `1280x720@30` profile. The client verifies the applied cadence from decoded
+  `640x480@30` profile. The client verifies the applied cadence from decoded
   frames because SDK 2.2.0-E does not always emit a runtime-parameter callback
   for the initial camera open.
 - Metadata is received, at least 95 percent of decoded frames match metadata,
@@ -78,7 +78,15 @@ directory and `%TEMP%\egoglass-webrtc-eval`.
 
 ## Validation record
 
-Validated the adaptive 720p30 profile on 2026-07-30 with an `RG-glasses`
+The 640 x 480 horizontal 4:3 capture profile with the 3/6/8 Mbps
+maintain-resolution policy requires a fresh validation record after installation
+on Glass3. Record the visible horizontal and vertical scene bounds alongside the
+previous 1280 x 720 view so this eval measures the FOV change as well as transport
+health.
+
+### Previous balanced baseline
+
+Validated the previous adaptive 720p30 profile on 2026-07-30 with an `RG-glasses`
 device running Android 12, firmware
 `Rokid/glasses/glasses:12/SKQ1.240613.001/1.19.e003-20260616-150201:user/release-keys`:
 

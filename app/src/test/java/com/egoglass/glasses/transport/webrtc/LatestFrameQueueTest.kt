@@ -13,12 +13,26 @@ import java.util.concurrent.atomic.AtomicReference
 class LatestFrameQueueTest {
     @Test
     fun replacesPendingFrameInsteadOfGrowingLatency() {
-        val queue = LatestFrameQueue<Int>()
+        val discarded = mutableListOf<Int>()
+        val queue = LatestFrameQueue<Int>(discarded::add)
 
         assertFalse(queue.offerLatest(1))
         assertTrue(queue.offerLatest(2))
 
         assertEquals(2, queue.poll(0))
+        assertNull(queue.poll(0))
+        assertEquals(listOf(1), discarded)
+    }
+
+    @Test
+    fun clearReleasesEveryPendingValue() {
+        val discarded = mutableListOf<Int>()
+        val queue = LatestFrameQueue<Int>(discarded::add)
+        queue.offerLatest(1)
+
+        queue.clear()
+
+        assertEquals(listOf(1), discarded)
         assertNull(queue.poll(0))
     }
 

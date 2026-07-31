@@ -3,12 +3,14 @@ package com.egoglass.glasses.transport.webrtc
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.TimeUnit
 
-internal class LatestFrameQueue<T> {
+internal class LatestFrameQueue<T>(
+    private val onDiscard: (T) -> Unit = {},
+) {
     private val queue = ArrayBlockingQueue<T>(1)
 
     fun offerLatest(value: T): Boolean {
         if (queue.offer(value)) return false
-        queue.poll()
+        queue.poll()?.let(onDiscard)
         check(queue.offer(value))
         return true
     }
@@ -20,5 +22,7 @@ internal class LatestFrameQueue<T> {
         null
     }
 
-    fun clear() = queue.clear()
+    fun clear() {
+        while (true) onDiscard(queue.poll() ?: return)
+    }
 }

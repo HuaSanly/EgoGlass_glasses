@@ -107,7 +107,7 @@ if ($lastStatus.rtp_packet_loss_percent -ge 1) {
 if ($lastStatus.rtp_jitter_ms -ge 50) {
     throw "GLASS-EVAL-WEBRTC-001 failed: RTP jitter $($lastStatus.rtp_jitter_ms) ms is not below 50 ms."
 }
-if ($lastStatus.width -ne 1280 -or $lastStatus.height -ne 720) {
+if ($lastStatus.width -ne 640 -or $lastStatus.height -ne 480) {
     throw "GLASS-EVAL-WEBRTC-001 failed: decoded size is $($lastStatus.width)x$($lastStatus.height)."
 }
 if ($lastStatus.video_codec -ne 'H264') {
@@ -143,12 +143,12 @@ if (Test-LogContains -Lines $logs -Pattern 'FATAL EXCEPTION') {
     throw 'GLASS-EVAL-WEBRTC-001 failed: AndroidRuntime crash detected.'
 }
 if (-not (Test-LogContains -Lines $logs `
-        -Pattern 'video_bitrate_bps min=800000 start=3000000 max=6000000 degradation=balanced')) {
+        -Pattern 'video_bitrate_bps min=3000000 start=6000000 max=8000000 degradation=maintain_resolution')) {
     throw 'GLASS-EVAL-WEBRTC-001 failed: adaptive WebRTC bitrate policy was not applied.'
 }
 if (-not (Test-LogContains -Lines $logs `
-        -Pattern '(?s)HardwareVideoEncoder: Format: .*width=1280.*bitrate=[0-9]+.*height=720')) {
-    throw 'GLASS-EVAL-WEBRTC-001 failed: hardware encoder did not apply the 720p profile.'
+        -Pattern '(?s)HardwareVideoEncoder: Format: .*width=640.*bitrate=[0-9]+.*height=480')) {
+    throw 'GLASS-EVAL-WEBRTC-001 failed: hardware encoder did not apply the 640x480 profile.'
 }
 Set-Content -LiteralPath (Join-Path $outputDirectory 'device.log') -Value $logs
 $lastStatus | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $outputDirectory 'status.json')
