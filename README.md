@@ -44,6 +44,8 @@ degrees diagonal FOV and the display as 30 degrees FOV. A true
 boundary requires camera intrinsics, camera-to-display extrinsics, display
 projection and wearer-fit measurements. It does not write orientation into the
 raw IMU telemetry stream.
+
+Hardware FOV source: [Rokid YodaOS-Sprite hardware parameters](https://open.rokid.com/sprite?lang=zh).
 Each frame preserves the raw Rokid millisecond timestamp and uses one Android
 `elapsedRealtimeNanos()` callback sample for both metadata and WebRTC/RTP time.
 This gives camera and IMU callbacks a common device-clock anchor without

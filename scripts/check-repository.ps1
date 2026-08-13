@@ -33,6 +33,12 @@ if ($legacyMatches.Count -gt 0) {
     throw "Legacy Demo identifiers remain:`n$($legacyMatches -join "`n")"
 }
 
+$removedHudGuideNames = @('CameraFrameGuideView', 'frame_guide')
+$removedHudGuideMatches = @($sourceFiles | Select-String -SimpleMatch -Pattern $removedHudGuideNames)
+if ($removedHudGuideMatches.Count -gt 0) {
+    throw "Removed camera guide identifiers remain:`n$($removedHudGuideMatches -join "`n")"
+}
+
 $scriptErrors = @()
 Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.ps1' -File | ForEach-Object {
     $tokens = $null
