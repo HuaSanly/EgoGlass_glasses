@@ -36,8 +36,9 @@ from a temple double-tap and authoritative recording status from the client.
 On current Glass3 firmware Linux `KEY_DASHBOARD` scan code 204 is translated by
 `Generic.kl` to Android `KEYCODE_NOTIFICATION`; the activity consumes that key
 and applies a 100-500 ms double-tap window. The display is an edge HUD with a
-low-brightness 4:3 guide and relative game-rotation-vector Y/P/R values; it does
-not write orientation into the raw IMU telemetry stream.
+low-brightness 4:3 capture-aspect guide and relative game-rotation-vector Y/P/R
+values; the guide follows the active camera resolution but is not an optical-FOV
+calibration. It does not write orientation into the raw IMU telemetry stream.
 Each frame preserves the raw Rokid millisecond timestamp and uses one Android
 `elapsedRealtimeNanos()` callback sample for both metadata and WebRTC/RTP time.
 This gives camera and IMU callbacks a common device-clock anchor without

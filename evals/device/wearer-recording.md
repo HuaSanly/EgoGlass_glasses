@@ -10,5 +10,6 @@ Record the Glass3 serial, Android build, firmware and client commit before runni
 6. During idle, countdown, recording and finalization, disconnect Wi-Fi and terminate the client in separate runs. The HUD must never claim recording without client confirmation.
 7. Stand still, turn right, look up and tilt right. Record Y/P/R signs and cross-axis error; target non-commanded axis error is at most 8 degrees.
 8. Record for 30 seconds and compare frame rate, dropped frames, control latency and memory to the prior build. Dropped-frame rate must not regress by more than one percentage point.
+9. Confirm the guide is fully visible and centered. At 480 x 640 display and 640 x 480 capture it must span x=0..480 and y=140..500. This validates capture aspect framing only; optical FOV alignment requires calibrated camera intrinsics, camera-to-display extrinsics and display FOV.
 
 The ring is out of scope for this eval.
