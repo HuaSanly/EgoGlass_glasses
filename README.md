@@ -36,9 +36,14 @@ from a temple double-tap and authoritative recording status from the client.
 On current Glass3 firmware Linux `KEY_DASHBOARD` scan code 204 is translated by
 `Generic.kl` to Android `KEYCODE_NOTIFICATION`; the activity consumes that key
 and applies a 100-500 ms double-tap window. The display is an edge HUD with a
-low-brightness 4:3 capture-aspect guide and relative game-rotation-vector Y/P/R
-values; the guide follows the active camera resolution but is not an optical-FOV
-calibration. It does not write orientation into the raw IMU telemetry stream.
+relative game-rotation-vector Y/P/R values. The optical coverage guide is
+removed because it cannot be represented faithfully on the narrow display:
+it does not draw a misleading interior 4:3 rectangle. Rokid's public
+consumer hardware table lists the same camera family as Sony IMX681 with 109
+degrees diagonal FOV and the display as 30 degrees FOV. A true
+boundary requires camera intrinsics, camera-to-display extrinsics, display
+projection and wearer-fit measurements. It does not write orientation into the
+raw IMU telemetry stream.
 Each frame preserves the raw Rokid millisecond timestamp and uses one Android
 `elapsedRealtimeNanos()` callback sample for both metadata and WebRTC/RTP time.
 This gives camera and IMU callbacks a common device-clock anchor without

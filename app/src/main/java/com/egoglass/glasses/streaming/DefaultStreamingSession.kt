@@ -163,7 +163,6 @@ class DefaultStreamingSession(
     override fun onCameraOpened(width: Int, height: Int, appliedFramesPerSecond: Int?) {
         if (!captureStarted) return
         cameraOpened = true
-        listeners.forEach { listener -> listener.onCaptureSizeChanged(width, height) }
         val fps = appliedFramesPerSecond?.let { " at $it FPS" }.orEmpty()
         updateState(StreamingSessionState.STREAMING, "${width}x$height$fps")
         sendControlStatus(null, StreamControlState.STREAMING, "${width}x$height$fps")

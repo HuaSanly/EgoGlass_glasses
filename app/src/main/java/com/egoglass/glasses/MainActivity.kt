@@ -21,7 +21,6 @@ import com.egoglass.glasses.orientation.RelativeOrientation
 import com.egoglass.glasses.streaming.StreamingSession
 import com.egoglass.glasses.streaming.StreamingSessionListener
 import com.egoglass.glasses.streaming.StreamingSessionState
-import com.egoglass.glasses.feedback.CameraFrameGuideView
 import com.egoglass.glasses.transport.discovery.ClientDiscovery
 import com.egoglass.glasses.transport.discovery.ClientDiscoveryListener
 import com.egoglass.glasses.transport.webrtc.RecordingControlState
@@ -45,7 +44,6 @@ class MainActivity : Activity() {
     private lateinit var streamStats: TextView
     private lateinit var runtimeIdentity: TextView
     private lateinit var orientationView: TextView
-    private lateinit var frameGuide: CameraFrameGuideView
     private lateinit var retryButton: Button
 
     private val tapDetector = TempleDoubleTapDetector()
@@ -76,10 +74,6 @@ class MainActivity : Activity() {
 
         override fun onStatsChanged(stats: WebRtcPublisherStats) {
             runOnUiThread { this@MainActivity.stats = stats; render() }
-        }
-
-        override fun onCaptureSizeChanged(width: Int, height: Int) {
-            runOnUiThread { frameGuide.setCameraSize(width, height) }
         }
 
         override fun onRecordingStatusChanged(status: RecordingControlStatus) {
@@ -133,7 +127,6 @@ class MainActivity : Activity() {
         streamStats = findViewById(R.id.stream_stats)
         runtimeIdentity = findViewById(R.id.runtime_identity)
         orientationView = findViewById(R.id.imu_orientation)
-        frameGuide = findViewById(R.id.frame_guide)
         retryButton = findViewById(R.id.retry_button)
         retryButton.setOnClickListener { retry() }
         orientationSource = GameRotationOrientationSource(this)
@@ -264,13 +257,6 @@ class MainActivity : Activity() {
             else -> ""
         }
         val active = recording.state == RecordingControlState.RECORDING || recording.state == RecordingControlState.COUNTDOWN
-        frameGuide.visibility = if (streamState in setOf(
-                StreamingSessionState.CAPTURING,
-                StreamingSessionState.STREAMING,
-                StreamingSessionState.STOPPED,
-            )
-        ) View.VISIBLE else View.INVISIBLE
-        frameGuide.setRecording(active)
         statusIndicator.setBackgroundResource(if (active) R.drawable.recording_indicator else R.drawable.status_indicator)
         retryButton.visibility = if (shouldShowRetry()) View.VISIBLE else View.GONE
         renderOrientation()

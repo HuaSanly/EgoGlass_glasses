@@ -21,8 +21,6 @@ interface StreamingSessionListener {
 
     fun onStatsChanged(stats: WebRtcPublisherStats)
 
-    fun onCaptureSizeChanged(width: Int, height: Int) = Unit
-
     fun onRecordingStatusChanged(status: RecordingControlStatus) = Unit
 }
 
