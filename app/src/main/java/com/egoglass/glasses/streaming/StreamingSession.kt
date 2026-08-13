@@ -3,6 +3,7 @@ package com.egoglass.glasses.streaming
 import com.egoglass.glasses.capture.CaptureConfig
 import com.egoglass.glasses.transport.webrtc.WebRtcPublisherStats
 import com.egoglass.glasses.transport.webrtc.WebRtcSessionConfig
+import com.egoglass.glasses.transport.webrtc.RecordingControlStatus
 
 enum class StreamingSessionState {
     IDLE,
@@ -19,10 +20,14 @@ interface StreamingSessionListener {
     fun onStateChanged(state: StreamingSessionState, detail: String?)
 
     fun onStatsChanged(stats: WebRtcPublisherStats)
+
+    fun onRecordingStatusChanged(status: RecordingControlStatus) = Unit
 }
 
 interface StreamingSession {
     val state: StreamingSessionState
+
+    val recordingStatus: RecordingControlStatus
 
     fun addListener(listener: StreamingSessionListener)
 
@@ -34,4 +39,6 @@ interface StreamingSession {
     )
 
     fun stop()
+
+    fun requestRecordingToggle(triggeredAtElapsedRealtimeNs: Long): Boolean
 }

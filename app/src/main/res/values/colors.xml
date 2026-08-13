@@ -9,4 +9,7 @@
     <color name="status_ready">#40FF5E</color>
     <color name="status_error">#FF5B5B</color>
     <color name="retry_button_text">#000000</color>
+    <color name="hud_background">#000000</color>
+    <color name="frame_guide_idle">#668FA8B8</color>
+    <color name="frame_guide_recording">#D9FF4D5D</color>
 </resources>

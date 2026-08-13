@@ -17,6 +17,11 @@ import com.egoglass.glasses.transport.webrtc.StreamControlAction
 import com.egoglass.glasses.transport.webrtc.StreamControlCommand
 import com.egoglass.glasses.transport.webrtc.StreamControlState
 import com.egoglass.glasses.transport.webrtc.StreamControlStatus
+import com.egoglass.glasses.transport.webrtc.RecordingControlAction
+import com.egoglass.glasses.transport.webrtc.RecordingControlCommand
+import com.egoglass.glasses.transport.webrtc.RecordingControlState
+import com.egoglass.glasses.transport.webrtc.RecordingControlStatus
+import java.util.UUID
 import java.util.concurrent.CopyOnWriteArraySet
 
 class DefaultStreamingSession(
@@ -28,6 +33,10 @@ class DefaultStreamingSession(
 
     @Volatile
     override var state: StreamingSessionState = StreamingSessionState.IDLE
+        private set
+
+    @Volatile
+    override var recordingStatus: RecordingControlStatus = RecordingControlStatus.UNAVAILABLE
         private set
 
     @Volatile
@@ -51,6 +60,7 @@ class DefaultStreamingSession(
     override fun addListener(listener: StreamingSessionListener) {
         listeners.add(listener)
         listener.onStateChanged(state, null)
+        listener.onRecordingStatusChanged(recordingStatus)
     }
 
     override fun removeListener(listener: StreamingSessionListener) {
@@ -84,7 +94,30 @@ class DefaultStreamingSession(
         frameSource.stop()
         stopImu()
         publisher.close()
+        updateRecordingStatus(RecordingControlStatus.UNAVAILABLE)
         updateState(StreamingSessionState.IDLE, null)
+    }
+
+    @Synchronized
+    override fun requestRecordingToggle(triggeredAtElapsedRealtimeNs: Long): Boolean {
+        val action = when (recordingStatus.state) {
+            RecordingControlState.READY,
+            RecordingControlState.ERROR,
+            RecordingControlState.UNAVAILABLE,
+            -> RecordingControlAction.START
+            RecordingControlState.COUNTDOWN,
+            RecordingControlState.RECORDING,
+            -> RecordingControlAction.STOP
+            RecordingControlState.STARTING_STREAM,
+            RecordingControlState.FINALIZING,
+            -> return false
+        }
+        val command = RecordingControlCommand(
+            commandId = UUID.randomUUID().toString().replace("-", ""),
+            action = action,
+            requestedAtElapsedRealtimeNs = triggeredAtElapsedRealtimeNs,
+        )
+        return publisher.sendRecordingControlCommand(command)
     }
 
     @Synchronized
@@ -110,12 +143,14 @@ class DefaultStreamingSession(
                 stopImu()
                 updateState(StreamingSessionState.DISCONNECTED, detail)
                 sendControlStatus(null, StreamControlState.ERROR, detail)
+                updateRecordingStatus(RecordingControlStatus.UNAVAILABLE)
             }
             WebRtcPublisherState.ERROR -> {
                 stopCapture()
                 stopImu()
                 updateState(StreamingSessionState.ERROR, detail)
                 sendControlStatus(null, StreamControlState.ERROR, detail)
+                updateRecordingStatus(RecordingControlStatus.UNAVAILABLE)
             }
         }
     }
@@ -179,6 +214,21 @@ class DefaultStreamingSession(
 
     override fun onControlProtocolError(detail: String) {
         sendControlStatus(null, StreamControlState.ERROR, detail)
+    }
+
+    override fun onRecordingControlChannelReady() = Unit
+
+    override fun onRecordingControlStatus(status: RecordingControlStatus) {
+        updateRecordingStatus(status)
+    }
+
+    override fun onRecordingControlProtocolError(detail: String) {
+        updateRecordingStatus(
+            RecordingControlStatus.UNAVAILABLE.copy(
+                state = RecordingControlState.ERROR,
+                detail = detail.take(256),
+            )
+        )
     }
 
     @Synchronized
@@ -263,5 +313,10 @@ class DefaultStreamingSession(
     private fun updateState(newState: StreamingSessionState, detail: String?) {
         state = newState
         listeners.forEach { listener -> listener.onStateChanged(newState, detail) }
+    }
+
+    private fun updateRecordingStatus(status: RecordingControlStatus) {
+        recordingStatus = status
+        listeners.forEach { listener -> listener.onRecordingStatusChanged(status) }
     }
 }

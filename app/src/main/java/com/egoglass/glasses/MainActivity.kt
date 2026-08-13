@@ -4,20 +4,27 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.res.ColorStateList
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
+import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.TextView
-import com.egoglass.glasses.domain.connection.SdkConnection
 import com.egoglass.glasses.domain.connection.SdkConnectionListener
 import com.egoglass.glasses.domain.connection.SdkConnectionState
+import com.egoglass.glasses.input.TempleDoubleTapDetector
+import com.egoglass.glasses.orientation.GameRotationOrientationSource
+import com.egoglass.glasses.orientation.RelativeOrientation
 import com.egoglass.glasses.streaming.StreamingSession
 import com.egoglass.glasses.streaming.StreamingSessionListener
 import com.egoglass.glasses.streaming.StreamingSessionState
 import com.egoglass.glasses.transport.discovery.ClientDiscovery
 import com.egoglass.glasses.transport.discovery.ClientDiscoveryListener
+import com.egoglass.glasses.transport.webrtc.RecordingControlState
+import com.egoglass.glasses.transport.webrtc.RecordingControlStatus
 import com.egoglass.glasses.transport.webrtc.WebRtcPublisherStats
 import com.egoglass.glasses.transport.webrtc.WebRtcSessionConfig
 
@@ -26,25 +33,28 @@ private const val EXTRA_SIGNALING_URL = "signaling_url"
 private const val EXTRA_PAIRING_TOKEN = "pairing_token"
 
 class MainActivity : Activity() {
-    private val connection: SdkConnection
-        get() = (application as EgoGlassApplication).sdkConnection
-    private val streamingSession: StreamingSession
-        get() = (application as EgoGlassApplication).streamingSession
-    private val clientDiscovery: ClientDiscovery
-        get() = (application as EgoGlassApplication).clientDiscovery
-
+    private val applicationState get() = application as EgoGlassApplication
+    private val connection get() = applicationState.sdkConnection
+    private val streamingSession: StreamingSession get() = applicationState.streamingSession
+    private val clientDiscovery: ClientDiscovery get() = applicationState.clientDiscovery
     private lateinit var sdkStatus: TextView
     private lateinit var statusIndicator: View
-    private lateinit var statusTitle: TextView
-    private lateinit var statusDetail: TextView
+    private lateinit var recordingStatus: TextView
+    private lateinit var recordingTimer: TextView
     private lateinit var streamStats: TextView
     private lateinit var runtimeIdentity: TextView
+    private lateinit var orientationView: TextView
+    private lateinit var frameGuide: View
     private lateinit var retryButton: Button
 
+    private val tapDetector = TempleDoubleTapDetector()
+    private lateinit var orientationSource: GameRotationOrientationSource
+    private val hudHandler = Handler(Looper.getMainLooper())
     private var sdkState = SdkConnectionState.IDLE
     private var streamState = StreamingSessionState.IDLE
-    private var streamDetail: String? = null
     private var stats = WebRtcPublisherStats()
+    private var recording = RecordingControlStatus.UNAVAILABLE
+    private var orientation: RelativeOrientation? = null
     private var sessionConfig: WebRtcSessionConfig? = null
     private var configError: String? = null
     private var discoveryState = DiscoveryState.IDLE
@@ -60,16 +70,21 @@ class MainActivity : Activity() {
     }
     private val streamingListener = object : StreamingSessionListener {
         override fun onStateChanged(state: StreamingSessionState, detail: String?) {
-            runOnUiThread {
-                streamState = state
-                streamDetail = detail
-                render()
-            }
+            runOnUiThread { streamState = state; render() }
         }
 
         override fun onStatsChanged(stats: WebRtcPublisherStats) {
+            runOnUiThread { this@MainActivity.stats = stats; render() }
+        }
+
+        override fun onRecordingStatusChanged(status: RecordingControlStatus) {
             runOnUiThread {
-                this@MainActivity.stats = stats
+                if (status.state == RecordingControlState.COUNTDOWN &&
+                    recording.state != RecordingControlState.COUNTDOWN
+                ) {
+                    orientationSource.reset()
+                }
+                recording = status
                 render()
             }
         }
@@ -94,19 +109,29 @@ class MainActivity : Activity() {
         }
     }
 
+    private val hudTick = object : Runnable {
+        override fun run() {
+            orientation = orientationSource.latest
+            renderOrientation()
+            hudHandler.postDelayed(this, 100)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_main)
-
         sdkStatus = findViewById(R.id.sdk_status)
         statusIndicator = findViewById(R.id.status_indicator)
-        statusTitle = findViewById(R.id.status_title)
-        statusDetail = findViewById(R.id.status_detail)
+        recordingStatus = findViewById(R.id.recording_status)
+        recordingTimer = findViewById(R.id.recording_timer)
         streamStats = findViewById(R.id.stream_stats)
         runtimeIdentity = findViewById(R.id.runtime_identity)
+        orientationView = findViewById(R.id.imu_orientation)
+        frameGuide = findViewById(R.id.frame_guide)
         retryButton = findViewById(R.id.retry_button)
         retryButton.setOnClickListener { retry() }
+        orientationSource = GameRotationOrientationSource(this)
         readSessionConfig(intent)
         render()
     }
@@ -117,18 +142,21 @@ class MainActivity : Activity() {
         streamingSession.stop()
         readSessionConfig(intent)
         if (sessionConfig == null) discoverClient() else maybeStartStreaming()
-        render()
     }
 
     override fun onStart() {
         super.onStart()
         connection.addListener(sdkListener)
         streamingSession.addListener(streamingListener)
+        orientationSource.start()
+        hudHandler.post(hudTick)
         connection.start()
         if (sessionConfig == null) discoverClient()
     }
 
     override fun onStop() {
+        hudHandler.removeCallbacks(hudTick)
+        orientationSource.stop()
         clientDiscovery.cancel()
         streamingSession.stop()
         streamingSession.removeListener(streamingListener)
@@ -141,17 +169,28 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray,
-    ) {
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // Glass3 Generic.kl maps Linux KEY_DASHBOARD (204) to Android NOTIFICATION.
+        if (event.keyCode == KeyEvent.KEYCODE_NOTIFICATION) {
+            if (event.action == KeyEvent.ACTION_UP && event.repeatCount == 0) {
+                if (tapDetector.onTap(event.eventTime)) {
+                    val sent = streamingSession.requestRecordingToggle(
+                        SystemClock.elapsedRealtimeNanos()
+                    )
+                    if (!sent && recording.state == RecordingControlState.UNAVAILABLE) retry()
+                    render()
+                }
+            }
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == CAMERA_PERMISSION_REQUEST) {
             permissionRequested = true
-            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-                maybeStartStreaming()
-            }
+            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) maybeStartStreaming()
             render()
         }
     }
@@ -197,186 +236,61 @@ class MainActivity : Activity() {
     }
 
     private fun retry() {
-        if (sdkState.canRetry || sdkState == SdkConnectionState.IDLE) {
-            connection.start()
-        }
-        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(Manifest.permission.CAMERA), CAMERA_PERMISSION_REQUEST)
-            return
-        }
+        connection.start()
         streamingSession.stop()
         discoverClient()
     }
 
     private fun render() {
-        sdkStatus.text = getString(
-            if (sdkState == SdkConnectionState.READY) R.string.sdk_ready else R.string.sdk_pending
-        )
-        val model = screenModel()
-        statusIndicator.backgroundTintList = ColorStateList.valueOf(getColor(model.color))
-        statusTitle.setText(model.title)
-        statusDetail.text = model.detail ?: getString(model.detailResource)
-        streamStats.text = if (streamState == StreamingSessionState.STREAMING) {
-            getString(
-                R.string.stream_stats,
-                stats.framesPublished,
-                stats.framesDropped,
-                stats.metadataSent,
-            )
-        } else {
-            ""
+        sdkStatus.text = when {
+            sdkState == SdkConnectionState.ERROR -> "DEVICE ERROR"
+            discoveryState == DiscoveryState.DISCOVERING -> "FINDING CLIENT"
+            streamState in setOf(StreamingSessionState.STREAMING, StreamingSessionState.STOPPED) -> "CLIENT READY"
+            streamState in setOf(StreamingSessionState.ERROR, StreamingSessionState.DISCONNECTED) -> "CLIENT OFFLINE"
+            else -> "CONNECTING"
         }
-        runtimeIdentity.text = sessionConfig?.displayEndpoint ?: getString(
-            if (discoveryState == DiscoveryState.DISCOVERING) {
-                R.string.runtime_discovery
-            } else {
-                R.string.runtime_identity
-            }
-        )
-        retryButton.visibility = if (model.canRetry) View.VISIBLE else View.INVISIBLE
-        if (model.canRetry) retryButton.requestFocus()
+        runtimeIdentity.text = sessionConfig?.displayEndpoint ?: getString(if (discoveryState == DiscoveryState.DISCOVERING) R.string.runtime_discovery else R.string.runtime_identity)
+        streamStats.text = if (streamState == StreamingSessionState.STREAMING) getString(R.string.stream_stats, stats.framesPublished, stats.framesDropped, stats.metadataSent) else ""
+        recordingStatus.setText(recordingLabel())
+        recordingTimer.text = when {
+            recording.state == RecordingControlState.COUNTDOWN -> "${recording.countdownRemainingMs ?: 0} ms"
+            recording.state == RecordingControlState.RECORDING -> formatDuration(recording.recordingDurationMs)
+            recording.state == RecordingControlState.ERROR -> recording.detail.orEmpty()
+            else -> ""
+        }
+        val active = recording.state == RecordingControlState.RECORDING || recording.state == RecordingControlState.COUNTDOWN
+        frameGuide.visibility = if (streamState in setOf(
+                StreamingSessionState.CAPTURING,
+                StreamingSessionState.STREAMING,
+                StreamingSessionState.STOPPED,
+            )
+        ) View.VISIBLE else View.INVISIBLE
+        frameGuide.setBackgroundResource(if (active) R.drawable.camera_frame_guide_recording else R.drawable.camera_frame_guide)
+        statusIndicator.setBackgroundResource(if (active) R.drawable.recording_indicator else R.drawable.status_indicator)
+        retryButton.visibility = if (shouldShowRetry()) View.VISIBLE else View.GONE
+        renderOrientation()
     }
 
-    private fun screenModel(): ScreenModel {
-        configError?.let {
-            return ScreenModel(
-                R.string.stream_config_error,
-                0,
-                it,
-                R.color.status_error,
-                true,
-            )
-        }
-        if (sessionConfig == null) {
-            return when (discoveryState) {
-                DiscoveryState.DISCOVERING -> ScreenModel(
-                    R.string.stream_discovering,
-                    R.string.stream_discovering_detail,
-                    null,
-                    R.color.status_pending,
-                    false,
-                )
-                DiscoveryState.ERROR -> ScreenModel(
-                    R.string.stream_client_not_found,
-                    R.string.stream_client_not_found_detail,
-                    discoveryError,
-                    R.color.status_error,
-                    true,
-                )
-                else -> ScreenModel(
-                    R.string.stream_waiting,
-                    R.string.stream_waiting_detail,
-                    null,
-                    R.color.status_inactive,
-                    false,
-                )
-            }
-        }
-        if (sdkState != SdkConnectionState.READY) return sdkModel()
-        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            return ScreenModel(
-                R.string.camera_permission,
-                R.string.camera_permission_detail,
-                null,
-                R.color.status_pending,
-                permissionRequested,
-            )
-        }
-        return when (streamState) {
-            StreamingSessionState.IDLE,
-            StreamingSessionState.SIGNALING,
-            -> ScreenModel(
-                R.string.stream_signaling,
-                R.string.stream_signaling_detail,
-                streamDetail,
-                R.color.status_pending,
-                false,
-            )
-            StreamingSessionState.CONNECTING -> ScreenModel(
-                R.string.stream_connecting,
-                R.string.stream_connecting_detail,
-                streamDetail,
-                R.color.status_pending,
-                false,
-            )
-            StreamingSessionState.CAPTURING -> ScreenModel(
-                R.string.stream_capturing,
-                R.string.stream_capturing_detail,
-                streamDetail,
-                R.color.status_pending,
-                false,
-            )
-            StreamingSessionState.STREAMING -> ScreenModel(
-                R.string.stream_live,
-                R.string.stream_live_detail,
-                streamDetail,
-                R.color.status_ready,
-                false,
-            )
-            StreamingSessionState.STOPPED -> ScreenModel(
-                R.string.stream_stopped,
-                R.string.stream_stopped_detail,
-                streamDetail,
-                R.color.status_pending,
-                false,
-            )
-            StreamingSessionState.DISCONNECTED -> ScreenModel(
-                R.string.stream_disconnected,
-                R.string.stream_disconnected_detail,
-                streamDetail,
-                R.color.status_error,
-                true,
-            )
-            StreamingSessionState.ERROR -> ScreenModel(
-                R.string.stream_error,
-                R.string.stream_error_detail,
-                streamDetail,
-                R.color.status_error,
-                true,
-            )
-        }
+    private fun renderOrientation() {
+        val value = orientation
+        orientationView.text = if (value == null) getString(R.string.orientation_unavailable) else "Y ${value.yawDegrees.toInt().withSign()}   P ${value.pitchDegrees.toInt().withSign()}   R ${value.rollDegrees.toInt().withSign()}"
     }
 
-    private fun sdkModel(): ScreenModel = when (sdkState) {
-        SdkConnectionState.IDLE,
-        SdkConnectionState.CONNECTING,
-        SdkConnectionState.REGISTERING,
-        -> ScreenModel(
-            R.string.status_connecting,
-            R.string.status_connecting_detail,
-            null,
-            R.color.status_pending,
-            false,
-        )
-        SdkConnectionState.READY -> error("READY is handled before sdkModel")
-        SdkConnectionState.DISCONNECTED -> ScreenModel(
-            R.string.status_disconnected,
-            R.string.status_disconnected_detail,
-            null,
-            R.color.status_error,
-            true,
-        )
-        SdkConnectionState.ERROR -> ScreenModel(
-            R.string.status_error,
-            R.string.status_error_detail,
-            null,
-            R.color.status_error,
-            true,
-        )
+    private fun recordingLabel(): Int = when (recording.state) {
+        RecordingControlState.UNAVAILABLE -> R.string.recording_unavailable
+        RecordingControlState.READY -> R.string.recording_ready
+        RecordingControlState.STARTING_STREAM -> R.string.recording_starting_stream
+        RecordingControlState.COUNTDOWN -> R.string.recording_countdown
+        RecordingControlState.RECORDING -> R.string.recording_recording
+        RecordingControlState.FINALIZING -> R.string.recording_finalizing
+        RecordingControlState.ERROR -> R.string.recording_error
     }
 
-    private data class ScreenModel(
-        val title: Int,
-        val detailResource: Int,
-        val detail: String?,
-        val color: Int,
-        val canRetry: Boolean,
-    )
+    private fun shouldShowRetry() = configError != null || discoveryState == DiscoveryState.ERROR || sdkState == SdkConnectionState.ERROR || streamState == StreamingSessionState.ERROR || streamState == StreamingSessionState.DISCONNECTED
 
-    private enum class DiscoveryState {
-        IDLE,
-        DISCOVERING,
-        READY,
-        ERROR,
-    }
+    private fun formatDuration(milliseconds: Long): String = "%02d:%02d".format(milliseconds / 60_000, (milliseconds / 1_000) % 60)
+
+    private fun Int.withSign() = if (this >= 0) "+$this" else toString()
+
+    private enum class DiscoveryState { IDLE, DISCOVERING, READY, ERROR }
 }

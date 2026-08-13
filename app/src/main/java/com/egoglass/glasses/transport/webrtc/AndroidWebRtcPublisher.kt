@@ -85,6 +85,9 @@ private class AndroidWebRtcPublisher(
     private var controlChannel: DataChannel? = null
 
     @Volatile
+    private var recordingControlChannel: DataChannel? = null
+
+    @Volatile
     private var imuChannel: DataChannel? = null
 
     @Volatile
@@ -161,6 +164,13 @@ private class AndroidWebRtcPublisher(
         val channel = controlChannel ?: return false
         if (channel.state() != DataChannel.State.OPEN) return false
         val payload = encodeStreamControlStatus(status)
+        return channel.send(DataChannel.Buffer(ByteBuffer.wrap(payload), false))
+    }
+
+    override fun sendRecordingControlCommand(command: RecordingControlCommand): Boolean {
+        val channel = recordingControlChannel ?: return false
+        if (channel.state() != DataChannel.State.OPEN) return false
+        val payload = encodeRecordingControlCommand(command)
         return channel.send(DataChannel.Buffer(ByteBuffer.wrap(payload), false))
     }
 
@@ -279,6 +289,14 @@ private class AndroidWebRtcPublisher(
             .also { channel ->
                 channel.registerObserver(createControlChannelObserver(sessionGeneration, channel))
             }
+        recordingControlChannel = peer.createDataChannel(
+            RECORDING_CONTROL_CHANNEL,
+            createRecordingControlChannelInit(),
+        ).also { channel ->
+            channel.registerObserver(
+                createRecordingControlChannelObserver(sessionGeneration, channel)
+            )
+        }
         imuChannel = peer.createDataChannel(
             IMU_TELEMETRY_CHANNEL,
             createImuTelemetryChannelInit(),
@@ -521,6 +539,52 @@ private class AndroidWebRtcPublisher(
         override fun onMessage(buffer: DataChannel.Buffer) = Unit
     }
 
+    private fun createRecordingControlChannelObserver(
+        sessionGeneration: Long,
+        channel: DataChannel,
+    ): DataChannel.Observer = object : DataChannel.Observer {
+        override fun onBufferedAmountChange(previousAmount: Long) = Unit
+
+        override fun onStateChange() {
+            if (sessionGeneration != generation.get() || recordingControlChannel !== channel) return
+            when (channel.state()) {
+                DataChannel.State.OPEN -> {
+                    Log.i(TAG, "recording_control_state=open")
+                    listeners.forEach(WebRtcPublisherListener::onRecordingControlChannelReady)
+                }
+                DataChannel.State.CLOSED -> {
+                    Log.i(TAG, "recording_control_state=closed")
+                    listeners.forEach { listener ->
+                        listener.onRecordingControlStatus(RecordingControlStatus.UNAVAILABLE)
+                    }
+                }
+                else -> Unit
+            }
+        }
+
+        override fun onMessage(buffer: DataChannel.Buffer) {
+            if (sessionGeneration != generation.get() || recordingControlChannel !== channel) return
+            runCatching {
+                val data = buffer.data.duplicate()
+                require(data.remaining() <= MAX_RECORDING_CONTROL_PAYLOAD_BYTES) {
+                    "Recording-control payload size is invalid"
+                }
+                val payload = ByteArray(data.remaining())
+                data.get(payload)
+                decodeRecordingControlStatus(payload, buffer.binary)
+            }.onSuccess { status ->
+                Log.i(TAG, "recording_control_status=${status.state.wireValue}")
+                listeners.forEach { listener -> listener.onRecordingControlStatus(status) }
+            }.onFailure { error ->
+                val detail = error.message ?: "Invalid recording-control status"
+                Log.w(TAG, "recording_control_rejected=$detail")
+                listeners.forEach { listener ->
+                    listener.onRecordingControlProtocolError(detail)
+                }
+            }
+        }
+    }
+
     private fun sendImuPayload(payload: ByteArray): Boolean {
         val channel = imuChannel ?: return false
         return runCatching {
@@ -648,6 +712,12 @@ private class AndroidWebRtcPublisher(
             dispose()
         }
         controlChannel = null
+        recordingControlChannel?.runCatching {
+            unregisterObserver()
+            close()
+            dispose()
+        }
+        recordingControlChannel = null
         imuChannel?.runCatching {
             unregisterObserver()
             close()

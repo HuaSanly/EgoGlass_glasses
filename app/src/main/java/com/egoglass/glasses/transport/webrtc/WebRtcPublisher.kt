@@ -18,6 +18,8 @@ interface WebRtcPublisher {
 
     fun sendControlStatus(status: StreamControlStatus): Boolean
 
+    fun sendRecordingControlCommand(command: RecordingControlCommand): Boolean = false
+
     fun sendImuCapabilities(capabilities: ImuCapabilities): Boolean
 
     fun offerImuSample(sample: ImuSample)

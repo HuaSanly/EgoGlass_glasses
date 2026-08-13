@@ -79,4 +79,10 @@ interface WebRtcPublisherListener {
     fun onControlCommand(command: StreamControlCommand) = Unit
 
     fun onControlProtocolError(detail: String) = Unit
+
+    fun onRecordingControlChannelReady() = Unit
+
+    fun onRecordingControlStatus(status: RecordingControlStatus) = Unit
+
+    fun onRecordingControlProtocolError(detail: String) = Unit
 }

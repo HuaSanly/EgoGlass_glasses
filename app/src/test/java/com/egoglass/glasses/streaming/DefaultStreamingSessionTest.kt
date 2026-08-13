@@ -16,6 +16,10 @@ import com.egoglass.glasses.transport.webrtc.StreamControlAction
 import com.egoglass.glasses.transport.webrtc.StreamControlCommand
 import com.egoglass.glasses.transport.webrtc.StreamControlState
 import com.egoglass.glasses.transport.webrtc.StreamControlStatus
+import com.egoglass.glasses.transport.webrtc.RecordingControlAction
+import com.egoglass.glasses.transport.webrtc.RecordingControlCommand
+import com.egoglass.glasses.transport.webrtc.RecordingControlState
+import com.egoglass.glasses.transport.webrtc.RecordingControlStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -141,6 +145,36 @@ class DefaultStreamingSessionTest {
         )
     }
 
+    @Test
+    fun recordingToggleUsesOnlyAuthoritativeClientState() {
+        val publisher = FakePublisher()
+        val session = DefaultStreamingSession(FakeSource(), publisher, FakeImuSource())
+
+        publisher.emitRecordingStatus(status(RecordingControlState.READY))
+        assertTrue(session.requestRecordingToggle(100))
+        assertEquals(RecordingControlAction.START, publisher.recordingCommands.last().action)
+        assertEquals(RecordingControlState.READY, session.recordingStatus.state)
+
+        publisher.emitRecordingStatus(status(RecordingControlState.RECORDING))
+        assertTrue(session.requestRecordingToggle(200))
+        assertEquals(RecordingControlAction.STOP, publisher.recordingCommands.last().action)
+
+        publisher.emitRecordingStatus(status(RecordingControlState.FINALIZING))
+        assertFalse(session.requestRecordingToggle(300))
+        assertEquals(2, publisher.recordingCommands.size)
+    }
+
+    private fun status(state: RecordingControlState) = RecordingControlStatus(
+        commandId = null,
+        state = state,
+        recordingId = null,
+        countdownRemainingMs = null,
+        recordingDurationMs = 0,
+        frameCount = 0,
+        imuSampleCount = 0,
+        detail = null,
+    )
+
     private class FakeSource : VideoFrameSource {
         var started = false
         var startCount = 0
@@ -217,6 +251,7 @@ class DefaultStreamingSessionTest {
         val statuses = mutableListOf<StreamControlStatus>()
         val imuCapabilities = mutableListOf<ImuCapabilities>()
         val imuSamples = mutableListOf<ImuSample>()
+        val recordingCommands = mutableListOf<RecordingControlCommand>()
         override var state = WebRtcPublisherState.IDLE
 
         override fun addListener(listener: WebRtcPublisherListener) {
@@ -238,6 +273,11 @@ class DefaultStreamingSessionTest {
 
         override fun sendControlStatus(status: StreamControlStatus): Boolean {
             statuses += status
+            return true
+        }
+
+        override fun sendRecordingControlCommand(command: RecordingControlCommand): Boolean {
+            recordingCommands += command
             return true
         }
 
@@ -265,6 +305,10 @@ class DefaultStreamingSessionTest {
 
         fun emitControlError(detail: String) {
             listeners.forEach { it.onControlProtocolError(detail) }
+        }
+
+        fun emitRecordingStatus(status: RecordingControlStatus) {
+            listeners.forEach { it.onRecordingControlStatus(status) }
         }
 
         fun emitState(newState: WebRtcPublisherState) {

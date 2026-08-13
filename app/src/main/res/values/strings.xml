@@ -21,6 +21,14 @@
     <string name="status_error">CONNECTION ERROR</string>
     <string name="status_error_detail">The Glass3 service could not be initialized</string>
     <string name="retry">RETRY</string>
+    <string name="recording_ready">READY</string>
+    <string name="recording_unavailable">OFFLINE</string>
+    <string name="recording_starting_stream">CONNECTING</string>
+    <string name="recording_countdown">STARTING</string>
+    <string name="recording_recording">RECORDING</string>
+    <string name="recording_finalizing">SAVING</string>
+    <string name="recording_error">ERROR</string>
+    <string name="orientation_unavailable">Y --   P --   R --</string>
 
     <string name="stream_waiting">WAITING FOR CLIENT</string>
     <string name="stream_waiting_detail">Start the Windows client, then reopen EgoGlass</string>
