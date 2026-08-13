@@ -1,4 +1,4 @@
-package com.egoglass.glasses.capture
+package com.egoglass.glasses.feedback
 
 import android.content.Context
 import android.graphics.Canvas

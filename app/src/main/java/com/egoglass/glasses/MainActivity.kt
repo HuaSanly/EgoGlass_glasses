@@ -21,7 +21,7 @@ import com.egoglass.glasses.orientation.RelativeOrientation
 import com.egoglass.glasses.streaming.StreamingSession
 import com.egoglass.glasses.streaming.StreamingSessionListener
 import com.egoglass.glasses.streaming.StreamingSessionState
-import com.egoglass.glasses.capture.CameraFrameGuideView
+import com.egoglass.glasses.feedback.CameraFrameGuideView
 import com.egoglass.glasses.transport.discovery.ClientDiscovery
 import com.egoglass.glasses.transport.discovery.ClientDiscoveryListener
 import com.egoglass.glasses.transport.webrtc.RecordingControlState

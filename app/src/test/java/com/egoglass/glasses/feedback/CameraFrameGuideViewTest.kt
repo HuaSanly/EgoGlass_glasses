@@ -1,4 +1,4 @@
-package com.egoglass.glasses.capture
+package com.egoglass.glasses.feedback
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
