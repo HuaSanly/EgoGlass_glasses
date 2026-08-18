@@ -53,6 +53,9 @@ claiming that callback time is the camera exposure time.
 Frame metadata also includes an application-local `camera_start_generation`
 that increments on every camera start, allowing the client to split clock
 mappings even when a stop/start interval is shorter than its gap threshold.
+Video is submitted to WebRTC only after the corresponding reliable metadata
+message is queued. Metadata backpressure therefore drops the pair and increments
+`metadata_pair_drops` instead of producing an unpublishable video-only frame.
 Start the Windows workspace client first:
 
 ```powershell

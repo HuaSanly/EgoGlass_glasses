@@ -58,6 +58,7 @@ private class AndroidWebRtcPublisher(
     private val framesPublished = AtomicLong(0)
     private val framesDropped = AtomicLong(0)
     private val metadataSent = AtomicLong(0)
+    private val metadataPairDrops = AtomicLong(0)
     private val imuSamplesOffered = AtomicLong(0)
     private val imuSamplesSent = AtomicLong(0)
     private val imuSamplesDropped = AtomicLong(0)
@@ -460,31 +461,47 @@ private class AndroidWebRtcPublisher(
             frame.release()
             return
         }
-        val buffer = NV21Buffer(
-            frame.nv21,
-            frame.width,
-            frame.height,
-            Runnable { frame.release() },
+        val paired = publishFrameAfterMetadataQueued(
+            queueMetadata = { sendMetadata(frame) },
+            publishVideo = {
+                val buffer = NV21Buffer(
+                    frame.nv21,
+                    frame.width,
+                    frame.height,
+                    Runnable { frame.release() },
+                )
+                val videoFrame = VideoFrame(
+                    buffer,
+                    frame.rotationDegrees,
+                    frame.videoAtMonotonicNs,
+                )
+                try {
+                    source.capturerObserver.onFrameCaptured(videoFrame)
+                } finally {
+                    videoFrame.release()
+                }
+            },
         )
-        val videoFrame = VideoFrame(buffer, frame.rotationDegrees, frame.videoAtMonotonicNs)
-        try {
-            source.capturerObserver.onFrameCaptured(videoFrame)
-        } finally {
-            videoFrame.release()
+        if (!paired) {
+            frame.release()
+            framesDropped.incrementAndGet()
+            metadataPairDrops.incrementAndGet()
+            return
         }
         val published = framesPublished.incrementAndGet()
-        sendMetadata(frame)
         if (published % 20L == 0L) notifyStats()
     }
 
-    private fun sendMetadata(frame: CapturedVideoFrame) {
-        val channel = metadataChannel ?: return
-        if (channel.state() != DataChannel.State.OPEN) return
-        if (channel.bufferedAmount() > MAX_METADATA_BUFFERED_BYTES) return
+    private fun sendMetadata(frame: CapturedVideoFrame): Boolean {
+        val channel = metadataChannel ?: return false
+        if (channel.state() != DataChannel.State.OPEN) return false
+        if (channel.bufferedAmount() > MAX_METADATA_BUFFERED_BYTES) return false
         val payload = encodeVideoFrameMetadata(frame).toByteArray(StandardCharsets.UTF_8)
-        if (channel.send(DataChannel.Buffer(ByteBuffer.wrap(payload), false))) {
+        val sent = channel.send(DataChannel.Buffer(ByteBuffer.wrap(payload), false))
+        if (sent) {
             metadataSent.incrementAndGet()
         }
+        return sent
     }
 
     private fun createControlChannelObserver(
@@ -678,7 +695,8 @@ private class AndroidWebRtcPublisher(
             TAG,
             "frames_published=${stats.framesPublished} frames_dropped=${stats.framesDropped} " +
                 "metadata_sent=${stats.metadataSent} imu_samples_sent=${stats.imuSamplesSent} " +
-                "imu_samples_dropped=${stats.imuSamplesDropped}",
+                "imu_samples_dropped=${stats.imuSamplesDropped} " +
+                "metadata_pair_drops=${metadataPairDrops.get()}",
         )
         listeners.forEach { listener -> listener.onStatsChanged(stats) }
     }
@@ -688,6 +706,7 @@ private class AndroidWebRtcPublisher(
         framesPublished.set(0)
         framesDropped.set(0)
         metadataSent.set(0)
+        metadataPairDrops.set(0)
         imuSamplesOffered.set(0)
         imuSamplesSent.set(0)
         imuSamplesDropped.set(0)

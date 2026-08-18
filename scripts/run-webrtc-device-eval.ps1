@@ -150,6 +150,13 @@ if (-not (Test-LogContains -Lines $logs `
         -Pattern '(?s)HardwareVideoEncoder: Format: .*width=640.*bitrate=[0-9]+.*height=480')) {
     throw 'GLASS-EVAL-WEBRTC-001 failed: hardware encoder did not apply the 640x480 profile.'
 }
+$pairingStats = Get-LatestPublisherPairingStats $logs
+if ($null -eq $pairingStats) {
+    throw 'GLASS-EVAL-WEBRTC-001 failed: paired video/metadata counters are missing.'
+}
+if ($pairingStats.FramesPublished -ne $pairingStats.MetadataSent) {
+    throw "GLASS-EVAL-WEBRTC-001 failed: published frames $($pairingStats.FramesPublished) do not match queued metadata $($pairingStats.MetadataSent)."
+}
 Set-Content -LiteralPath (Join-Path $outputDirectory 'device.log') -Value $logs
 $lastStatus | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $outputDirectory 'status.json')
 
@@ -164,6 +171,7 @@ Write-Output "RTP jitter: $($lastStatus.rtp_jitter_ms) ms"
 Write-Output "Codec: $($lastStatus.video_codec)"
 Write-Output "Decoded size: $($lastStatus.width)x$($lastStatus.height)"
 Write-Output "Metadata match ratio: $([Math]::Round($matchRatio, 4))"
+Write-Output "Metadata pair drops: $($pairingStats.MetadataPairDrops)"
 Write-Output "Max timestamp error: $($lastStatus.max_timestamp_match_error_90khz) ticks"
 Write-Output "First-frame latency: $($lastStatus.first_frame_latency_ms) ms"
 Write-Output "Screenshot: $localScreenshot"

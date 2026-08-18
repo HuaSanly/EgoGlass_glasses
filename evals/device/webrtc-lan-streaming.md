@@ -63,6 +63,9 @@ directory and `%TEMP%\egoglass-webrtc-eval`.
   timestamp association error does not exceed 1,000 ticks. The observed error
   distribution and selected offset must be recorded; 1,000 ticks remains below
   half of a 30 fps frame.
+- Every frame submitted to WebRTC has already queued its matching metadata.
+  Final `frames_published` and `metadata_sent` counters must be equal;
+  `metadata_pair_drops` records frames rejected as a pair during backpressure.
 - The glasses latest-frame queue reports its drop count and never grows.
 - The reliable ordered `stream-control-v1` DataChannel opens and reports the
   current capture state.

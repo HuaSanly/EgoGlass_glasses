@@ -50,5 +50,17 @@ if (-not (Test-LogContains -Lines $hardwareEncoderLog `
         -Pattern '(?s)HardwareVideoEncoder: Format: .*width=640.*bitrate=[0-9]+.*height=480')) {
     throw 'A valid multiline hardware encoder configuration was not detected.'
 }
+$pairingStats = Get-LatestPublisherPairingStats @(
+    'frames_published=20 frames_dropped=1 metadata_sent=20 imu_samples_sent=100',
+    'imu_samples_dropped=0 metadata_pair_drops=1',
+    'frames_published=40 frames_dropped=2 metadata_sent=40 imu_samples_sent=200',
+    'imu_samples_dropped=0 metadata_pair_drops=2'
+)
+if ($null -eq $pairingStats -or
+    $pairingStats.FramesPublished -ne 40 -or
+    $pairingStats.MetadataSent -ne 40 -or
+    $pairingStats.MetadataPairDrops -ne 2) {
+    throw 'Latest paired video/metadata counters were not parsed correctly.'
+}
 
 Write-Output 'WebRTC device eval route regression test passed.'

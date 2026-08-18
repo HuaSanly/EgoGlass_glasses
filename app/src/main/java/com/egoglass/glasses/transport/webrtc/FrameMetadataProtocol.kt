@@ -19,3 +19,12 @@ internal fun encodeVideoFrameMetadata(frame: CapturedVideoFrame): String =
         .put("rotation_degrees", frame.rotationDegrees)
         .put("capture_config_id", frame.captureConfigId)
         .toString()
+
+internal fun publishFrameAfterMetadataQueued(
+    queueMetadata: () -> Boolean,
+    publishVideo: () -> Unit,
+): Boolean {
+    if (!queueMetadata()) return false
+    publishVideo()
+    return true
+}
