@@ -4,9 +4,14 @@ import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.TimeUnit
 
 internal class LatestFrameQueue<T>(
+    capacity: Int = 1,
     private val onDiscard: (T) -> Unit = {},
 ) {
-    private val queue = ArrayBlockingQueue<T>(1)
+    private val queue = ArrayBlockingQueue<T>(capacity)
+
+    init {
+        require(capacity > 0)
+    }
 
     fun offerLatest(value: T): Boolean {
         if (queue.offer(value)) return false
@@ -21,6 +26,8 @@ internal class LatestFrameQueue<T>(
         Thread.currentThread().interrupt()
         null
     }
+
+    fun size(): Int = queue.size
 
     fun clear() {
         while (true) onDiscard(queue.poll() ?: return)

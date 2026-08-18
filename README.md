@@ -33,6 +33,11 @@ the reliable ordered `stream-control-v1` DataChannel carries validated start and
 stop commands plus device status acknowledgements. A separate reliable ordered
 `recording-control-v1` DataChannel carries validated wearer start/stop intents
 from a temple double-tap and authoritative recording status from the client.
+Raw IMU callbacks enqueue into a bounded 64-sample latest-data queue. A dedicated
+`egoglass-webrtc-imu` worker performs DataChannel sends, so SCTP backpressure can
+never block Android's SensorEvent thread. Queue eviction and send rejection both
+increment `imu_samples_dropped`, and `imu_queue_depth` is included in publisher
+logs.
 On current Glass3 firmware Linux `KEY_DASHBOARD` scan code 204 is translated by
 `Generic.kl` to Android `KEYCODE_NOTIFICATION`; the activity consumes that key
 and applies a 100-500 ms double-tap window. The display is an edge HUD with a

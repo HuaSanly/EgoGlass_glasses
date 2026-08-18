@@ -67,6 +67,10 @@ directory and `%TEMP%\egoglass-webrtc-eval`.
   Final `frames_published` and `metadata_sent` counters must be equal;
   `metadata_pair_drops` records frames rejected as a pair during backpressure.
 - The glasses latest-frame queue reports its drop count and never grows.
+- During an active client recording, accelerometer and gyroscope remain near
+  100 Hz, Android event-to-callback latency remains below 100 ms, and
+  `imu_queue_depth` never exceeds 64. Any queue eviction or DataChannel rejection
+  must be visible in `imu_samples_dropped`; the SensorEvent thread must not stall.
 - The reliable ordered `stream-control-v1` DataChannel opens and reports the
   current capture state.
 - A client `stop` command closes the camera and returns a matching `stopped`
@@ -80,6 +84,25 @@ directory and `%TEMP%\egoglass-webrtc-eval`.
 - Glasses firmware, addresses, final counters, and a screenshot are recorded.
 
 ## Validation record
+
+### Recording backpressure fix
+
+Validated on 2026-08-18 with an `RG-glasses` device running Android 12,
+firmware
+`Rokid/glasses/glasses:12/SKQ1.240613.001/1.19.e003-20260616-150201:user/release-keys`:
+
+- an 87.254-second client recording published a protocol-valid four-file
+  capture with 2,618 video frames and 18,212 IMU rows;
+- accelerometer and gyroscope remained between 100.887 and 100.919 Hz before,
+  during, and after recording;
+- latest Android event-to-client callback latency remained between 3.822 and
+  4.356 ms during recording, with no sequence gaps, duplicates, out-of-order
+  samples, or client telemetry queue overflows;
+- the Glass3 sender reported `imu_queue_depth` between 0 and 1,
+  `imu_samples_dropped=0`, `frames_dropped=0`, and
+  `metadata_pair_drops=0`;
+- client RTP loss was 0.0 percent, final receiver jitter was 8.244 ms, and no
+  decoded frame was marked corrupt.
 
 The 640 x 480 horizontal 4:3 capture profile with the 3/6/8 Mbps
 maintain-resolution policy requires a fresh validation record after installation

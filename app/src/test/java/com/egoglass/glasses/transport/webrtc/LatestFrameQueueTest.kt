@@ -14,7 +14,7 @@ class LatestFrameQueueTest {
     @Test
     fun replacesPendingFrameInsteadOfGrowingLatency() {
         val discarded = mutableListOf<Int>()
-        val queue = LatestFrameQueue<Int>(discarded::add)
+        val queue = LatestFrameQueue<Int>(onDiscard = discarded::add)
 
         assertFalse(queue.offerLatest(1))
         assertTrue(queue.offerLatest(2))
@@ -27,13 +27,28 @@ class LatestFrameQueueTest {
     @Test
     fun clearReleasesEveryPendingValue() {
         val discarded = mutableListOf<Int>()
-        val queue = LatestFrameQueue<Int>(discarded::add)
+        val queue = LatestFrameQueue<Int>(onDiscard = discarded::add)
         queue.offerLatest(1)
 
         queue.clear()
 
         assertEquals(listOf(1), discarded)
         assertNull(queue.poll(0))
+    }
+
+    @Test
+    fun boundedQueueDiscardsOldestSampleWithoutBlockingProducer() {
+        val discarded = mutableListOf<Int>()
+        val queue = LatestFrameQueue(capacity = 2, onDiscard = discarded::add)
+
+        assertFalse(queue.offerLatest(1))
+        assertFalse(queue.offerLatest(2))
+        assertTrue(queue.offerLatest(3))
+
+        assertEquals(listOf(1), discarded)
+        assertEquals(2, queue.size())
+        assertEquals(2, queue.poll(0))
+        assertEquals(3, queue.poll(0))
     }
 
     @Test

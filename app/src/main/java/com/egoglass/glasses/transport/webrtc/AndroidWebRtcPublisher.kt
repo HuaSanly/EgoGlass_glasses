@@ -43,6 +43,7 @@ private const val TAG = "EgoGlassWebRtc"
 private const val METADATA_CHANNEL = "frame-metadata-v1"
 private const val MAX_SIGNALING_RESPONSE_BYTES = 1_048_576
 private const val MAX_METADATA_BUFFERED_BYTES = 262_144L
+private const val IMU_QUEUE_CAPACITY = 64
 fun createAndroidWebRtcPublisher(context: Context): WebRtcPublisher =
     AndroidWebRtcPublisher(context.applicationContext)
 
@@ -53,7 +54,11 @@ private class AndroidWebRtcPublisher(
     private val generation = AtomicLong(0)
     private val offerPosted = AtomicBoolean(false)
     private val localDescriptionReady = AtomicBoolean(false)
-    private val frameQueue = LatestFrameQueue<CapturedVideoFrame> { frame -> frame.release() }
+    private val imuCapabilitiesPending = AtomicBoolean(false)
+    private val frameQueue = LatestFrameQueue<CapturedVideoFrame>(
+        onDiscard = { frame -> frame.release() },
+    )
+    private val imuQueue = LatestFrameQueue<ImuSample>(capacity = IMU_QUEUE_CAPACITY)
     private val framesOffered = AtomicLong(0)
     private val framesPublished = AtomicLong(0)
     private val framesDropped = AtomicLong(0)
@@ -106,6 +111,12 @@ private class AndroidWebRtcPublisher(
     @Volatile
     private var frameWorkerRunning = false
 
+    @Volatile
+    private var imuExecutor: ExecutorService? = null
+
+    @Volatile
+    private var imuWorkerRunning = false
+
     private val deviceSessionId = UUID.randomUUID().toString().replace("-", "")
 
     override fun addListener(listener: WebRtcPublisherListener) {
@@ -148,6 +159,11 @@ private class AndroidWebRtcPublisher(
         }
         frameWorkerRunning = true
         frameExecutor?.execute { drainFrames(sessionGeneration) }
+        imuExecutor = Executors.newSingleThreadExecutor { task ->
+            Thread(task, "egoglass-webrtc-imu")
+        }
+        imuWorkerRunning = true
+        imuExecutor?.execute { drainImu(sessionGeneration) }
     }
 
     override fun offerFrame(frame: CapturedVideoFrame) {
@@ -178,19 +194,14 @@ private class AndroidWebRtcPublisher(
     override fun sendImuCapabilities(capabilities: ImuCapabilities): Boolean {
         val payload = encodeImuCapabilities(capabilities)
         imuCapabilitiesPayload = payload
-        return sendImuPayload(payload)
+        imuCapabilitiesPending.set(true)
+        return imuWorkerRunning
     }
 
     override fun offerImuSample(sample: ImuSample) {
-        val offered = imuSamplesOffered.incrementAndGet()
-        if (sendImuPayload(encodeImuSample(sample))) {
-            imuSamplesSent.incrementAndGet()
-        } else {
+        imuSamplesOffered.incrementAndGet()
+        if (!imuWorkerRunning || imuQueue.offerLatest(sample)) {
             imuSamplesDropped.incrementAndGet()
-        }
-        if (offered % 500L == 0L) {
-            imuCapabilitiesPayload?.let(::sendImuPayload)
-            notifyStats()
         }
     }
 
@@ -452,6 +463,26 @@ private class AndroidWebRtcPublisher(
         }
     }
 
+    private fun drainImu(sessionGeneration: Long) {
+        var processed = 0L
+        while (imuWorkerRunning && sessionGeneration == generation.get()) {
+            if (imuCapabilitiesPending.compareAndSet(true, false)) {
+                imuCapabilitiesPayload?.let(::sendImuPayload)
+            }
+            val sample = imuQueue.poll(250) ?: continue
+            if (sendImuPayload(encodeImuSample(sample))) {
+                imuSamplesSent.incrementAndGet()
+            } else {
+                imuSamplesDropped.incrementAndGet()
+            }
+            processed += 1
+            if (processed % 500L == 0L) {
+                imuCapabilitiesPending.set(true)
+                notifyStats()
+            }
+        }
+    }
+
     private fun publishFrame(sessionGeneration: Long, frame: CapturedVideoFrame) {
         if (sessionGeneration != generation.get()) {
             frame.release()
@@ -549,7 +580,7 @@ private class AndroidWebRtcPublisher(
             if (sessionGeneration != generation.get() || imuChannel !== channel) return
             if (channel.state() == DataChannel.State.OPEN) {
                 Log.i(TAG, "imu_channel_state=open")
-                imuCapabilitiesPayload?.let(::sendImuPayload)
+                imuCapabilitiesPending.set(true)
             }
         }
 
@@ -696,7 +727,8 @@ private class AndroidWebRtcPublisher(
             "frames_published=${stats.framesPublished} frames_dropped=${stats.framesDropped} " +
                 "metadata_sent=${stats.metadataSent} imu_samples_sent=${stats.imuSamplesSent} " +
                 "imu_samples_dropped=${stats.imuSamplesDropped} " +
-                "metadata_pair_drops=${metadataPairDrops.get()}",
+                "metadata_pair_drops=${metadataPairDrops.get()} " +
+                "imu_queue_depth=${imuQueue.size()}",
         )
         listeners.forEach { listener -> listener.onStatsChanged(stats) }
     }
@@ -711,6 +743,7 @@ private class AndroidWebRtcPublisher(
         imuSamplesSent.set(0)
         imuSamplesDropped.set(0)
         imuCapabilitiesPayload = null
+        imuCapabilitiesPending.set(false)
     }
 
     private fun closeResources() {
@@ -718,6 +751,10 @@ private class AndroidWebRtcPublisher(
         frameQueue.clear()
         frameExecutor?.shutdownNow()
         frameExecutor = null
+        imuWorkerRunning = false
+        imuQueue.clear()
+        imuExecutor?.shutdownNow()
+        imuExecutor = null
         signalingExecutor?.shutdownNow()
         signalingExecutor = null
         metadataChannel?.runCatching {
@@ -744,6 +781,7 @@ private class AndroidWebRtcPublisher(
         }
         imuChannel = null
         imuCapabilitiesPayload = null
+        imuCapabilitiesPending.set(false)
         peerConnection?.runCatching {
             close()
             dispose()
